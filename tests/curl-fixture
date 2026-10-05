@@ -1,0 +1,12 @@
+#!/bin/bash
+# Stands in for curl during check-panel.sh's integration run: no real network
+# access. The radar item listing answers with no scans, so DataService never
+# downloads or converts anything; the test injects its own scans instead.
+case "${@: -1}" in
+  *radardata/collections/composite/items*)
+    printf '{"type":"FeatureCollection","features":[]}\n'
+    ;;
+  *)
+    exit 1
+    ;;
+esac

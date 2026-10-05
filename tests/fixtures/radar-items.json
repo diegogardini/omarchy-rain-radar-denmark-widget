@@ -1,0 +1,38 @@
+{
+  "type": "FeatureCollection",
+  "features": [
+    {
+      "type": "Feature",
+      "bbox": [4.379082700525593, 52.29427206432812, 20.735140174892805, 59.827708427801085],
+      "id": "dk.com.202607200400.500_max.h5",
+      "geometry": { "type": "Polygon", "coordinates": [[[4.38, 52.29], [20.74, 52.29], [20.74, 59.83], [4.38, 59.83], [4.38, 52.29]]] },
+      "properties": { "datetime": "2026-07-20T04:00:00Z", "created": "2026-07-20T04:12:04.283Z", "scanType": "fullRange" },
+      "stac_version": "1.0.0",
+      "collection": "composite",
+      "asset": { "data": { "type": "application/x-hdf5", "title": "Radar file download resource", "roles": ["data"], "href": "https://opendataapi.dmi.dk/v1/radardata/download/dk.com.202607200400.500_max.h5" } }
+    },
+    {
+      "type": "Feature",
+      "bbox": [4.379082700525593, 52.29427206432812, 20.735140174892805, 59.827708427801085],
+      "id": "dk.com.202607200405.500_max.h5",
+      "geometry": { "type": "Polygon", "coordinates": [[[4.38, 52.29], [20.74, 52.29], [20.74, 59.83], [4.38, 59.83], [4.38, 52.29]]] },
+      "properties": { "datetime": "2026-07-20T04:05:00Z", "created": "2026-07-20T04:12:04.119Z", "scanType": "doppler" },
+      "stac_version": "1.0.0",
+      "collection": "composite",
+      "asset": { "data": { "type": "application/x-hdf5", "title": "Radar file download resource", "roles": ["data"], "href": "https://opendataapi.dmi.dk/v1/radardata/download/dk.com.202607200405.500_max.h5" } }
+    },
+    {
+      "type": "Feature",
+      "bbox": [4.379082700525593, 52.29427206432812, 20.735140174892805, 59.827708427801085],
+      "id": "dk.com.202607200410.500_max.h5",
+      "geometry": { "type": "Polygon", "coordinates": [[[4.38, 52.29], [20.74, 52.29], [20.74, 59.83], [4.38, 59.83], [4.38, 52.29]]] },
+      "properties": { "datetime": "2026-07-20T04:10:00Z", "created": "2026-07-20T04:17:03.812Z", "scanType": "fullRange" },
+      "stac_version": "1.0.0",
+      "collection": "composite",
+      "asset": { "data": { "type": "application/x-hdf5", "title": "Radar file download resource", "roles": ["data"], "href": "https://opendataapi.dmi.dk/v1/radardata/download/dk.com.202607200410.500_max.h5" } }
+    }
+  ],
+  "timeStamp": "2026-07-20T04:17:10Z",
+  "numberReturned": 3,
+  "links": []
+}

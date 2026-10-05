@@ -1,0 +1,190 @@
+#!/usr/bin/env bash
+# Converts one DMI radar composite HDF5 file (ODIM data model) into:
+#   1. a PNG rain-rate raster, warped/cropped to the plugin's fixed map
+#      domain (matches MapModel.js's `bounds`), colorized with
+#      helpers/rain-colorramp.txt
+#   2. a JSON grid sidecar (*.nowcast-grid.json), 224 x 160 cells of about
+#      3.2 km over the same domain, for our own radar nowcast — DMI's own
+#      site has a radar-extrapolation nowcast, but it isn't exposed through
+#      the public Open Data API this plugin uses, so this is our own simple
+#      constant-velocity extrapolation (see Interpolation.js's
+#      extrapolateSequence). The nowcast frames are drawn from this grid as
+#      fillRect cells (see RadarMap.qml); the pin graph and the chance of
+#      rain read it too.
+#
+# Verified end-to-end against a live sample file downloaded from
+# opendataapi.dmi.dk on 2026-09-17 (dk.com.202607200405.500_max.h5), using
+# the actual GDAL 3.13.3 build available via `pacman -S gdal` on this
+# machine:
+#   - single dataset at /dataset1/data1/data, uint8, shape (1728, 1984)
+#   - quantity DBZH (reflectivity), gain 0.5, offset -32, nodata 255
+#     => dBZ = raw * gain + offset
+#   - Marshall-Palmer Z-R pair recorded under /dataset1/how: zr-a=200,
+#     zr-b=1.6 => Z = zr-a * R^zr-b => R = (10^(dBZ/10) / zr-a)^(1/zr-b)
+#   - projection: +proj=stere +ellps=WGS84 +lat_0=56 +lon_0=10.5666 +lat_ts=56
+#     (polar stereographic), 500m x 500m pixels, corner lat/lons in /where
+#
+# There is no ready-made RATE product in the composite collection (only
+# DBZH), so the dBZ -> mm/h conversion below is required, not optional.
+#
+# GDAL's HDF5 reader on this machine (driver "HDF5Image", not a dedicated
+# ODIM_H5 driver — `gdalinfo --formats` has no ODIM_H5 entry in this build)
+# does NOT expose ODIM's gain/offset/nodata as GDAL band Scale/Offset, so
+# `gdal_translate -unscale` silently does nothing useful here; gain/offset
+# are applied explicitly below via `gdal raster calc` instead, reading the
+# actual values out of gdalinfo's flattened attribute dump (`what_gain=`,
+# `what_offset=`, `what_nodata=`) rather than hardcoding them, in case a
+# different composite file ever uses different values. It *does* correctly
+# derive the stereographic projection/geotransform on its own, so no manual
+# georeferencing is needed.
+#
+# This build also has no working `gdal_calc.py` (the classic Python
+# entrypoint is broken here — GDAL's own Python bindings aren't installed —
+# though `gdal_calc.py` may work fine on other systems). GDAL 3.11+'s
+# built-in `gdal raster calc` is used instead, which needs no Python
+# bindings at all. Its muparser expression syntax: a single input dataset's
+# pixels are referenced as `X` (not `X1`/`A`).
+#
+# Requires: gdalinfo, gdal_translate, gdalwarp, gdaldem, and the `gdal
+# raster calc` subcommand (GDAL 3.11+; all part of the `gdal` package).
+
+set -euo pipefail
+
+if [ "$#" -ne 2 ]; then
+  echo "usage: $(basename "$0") <input.h5> <output-basename (no extension)>" >&2
+  exit 1
+fi
+
+in_file="$1"
+out_base="$2"
+script_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ramp_file="$script_dir/rain-colorramp.txt"
+
+# Map domain (west, south, east, north), kept in sync by hand with
+# MapModel.js's `bounds` — tests/maprange.test.cjs fails if they drift. It is
+# far larger than Denmark on purpose: the North Sea to the west (weather
+# arrives from there, so rain must be in-frame before it reaches the coast
+# for the nowcast to carry it in), the surrounding seas, and the
+# neighbouring countries for context.
+dk_west=5.0
+dk_south=53.9
+dk_east=16.5
+dk_north=58.5
+
+# MapModel.js draws everything in a cosine-scaled equirectangular projection
+# (longitude scaled by cos(56 degrees), Denmark's mid-latitude) so shapes
+# read correctly, NOT plain lat/lon. The colorized PNG below is drawn as one
+# stretched image over the whole map window (RadarMap.qml's ctx.drawImage),
+# so it must be warped to that exact same projection ("+proj=eqc
+# +lat_ts=56", i.e. equirectangular with a true-scale parallel at 56
+# degrees) or the radar raster would be stretched relative to the coastlines.
+# -te_srs lets -te stay in plain lon/lat degrees while -t_srs does the actual
+# eqc reprojection.
+eqc_srs="+proj=eqc +lat_ts=56 +lon_0=0 +datum=WGS84 +units=m +no_defs"
+# Aspect (width/height) must equal (east-west)*cos(56deg)/(north-south) =
+# 1.398 for the domain above; ~1.5 km per pixel.
+out_width=640
+out_height=458
+# Fine grid for the radar-extrapolation nowcast: ~3.2 km square cells over
+# the whole domain (11.5 deg * 62.2 km/deg / 224 = 4.6 deg * 111.3 / 160).
+# It is rendered directly as the visible nowcast frames, so resolution is
+# visual quality; block-matching cost scales with cell count.
+nowcast_grid_cols=224
+nowcast_grid_rows=160
+
+# Below this, treat rain rate as exactly zero (fully transparent) rather
+# than a tiny positive value. Without this, dBZ noise across the huge
+# composite area (most of it far from any real rain) produces a faint but
+# non-zero rate almost everywhere, which gdaldem's linear color-relief
+# interpolation then renders as a pervasive faint blue wash instead of a
+# clean transparent background — confirmed visually against a real sample
+# file before adding this threshold.
+rate_floor=0.05
+
+tmp_dir="$(mktemp -d)"
+trap 'rm -rf "$tmp_dir"' EXIT
+
+if ! command -v gdalinfo >/dev/null 2>&1; then
+  echo "gdalinfo not found — install GDAL (sudo pacman -S gdal)" >&2
+  exit 2
+fi
+
+gain="$(gdalinfo "$in_file" 2>/dev/null | grep -oP 'what_gain=\K[0-9.]+' || echo 0.5)"
+offset="$(gdalinfo "$in_file" 2>/dev/null | grep -oP 'what_offset=\K-?[0-9.]+' || echo -32)"
+nodata="$(gdalinfo "$in_file" 2>/dev/null | grep -oP 'what_nodata=\K[0-9.]+' || echo 255)"
+zr_a="$(gdalinfo "$in_file" 2>/dev/null | grep -oP 'zr-a=\K[0-9.]+' || echo 200)"
+zr_b="$(gdalinfo "$in_file" 2>/dev/null | grep -oP 'zr-b=\K[0-9.]+' || echo 1.6)"
+
+# Raw byte counts -> dBZ, masking the recorded nodata value to a sentinel.
+# Nodata (outside radar range) ends up as 0 mm/h below, i.e. drawn and used
+# as dry. That is only safe because the widget converts DMI's full-range scans
+# alone (RadarModel.fullRangeOnly): their uncovered area is the same fixed
+# far corners in every scan. The short-range "doppler" scans in between have
+# no data over much more of the map, and reading that as dry made rain vanish
+# and reappear every 5 minutes.
+gdal raster calc -q --overwrite -i "$in_file" -o "$tmp_dir/dbz.tif" \
+  --ot Float32 --nodata -9999 \
+  --calc "X==${nodata} ? -9999 : (X*${gain}+${offset})"
+
+# dBZ -> mm/h via the Marshall-Palmer relationship recorded in this file's
+# own metadata, floored to exactly 0 below $rate_floor (see comment above).
+gdal raster calc -q --overwrite -i "$tmp_dir/dbz.tif" -o "$tmp_dir/rate.tif" \
+  --ot Float32 --nodata 0 \
+  --calc "X==-9999 ? 0 : (((10.0^(X/10.0))/${zr_a})^(1.0/${zr_b}) < ${rate_floor} ? 0 : ((10.0^(X/10.0))/${zr_a})^(1.0/${zr_b}))"
+
+# The same rain rate for the grids, with dry pixels kept as 0 and only the
+# area the radar does not cover as nodata. gdalwarp's average skips nodata,
+# so on rate.tif (dry = nodata) a grid cell got the mean of its *wet* pixels
+# only: one 0.5 km speck of clutter or drizzle made the whole 3.2 km cell rain
+# at the speck's rate, and the nowcast carried it along (0.52 mm/h against
+# 0.013 for the whole cell on 2026-10-03 19:10 UTC; that scan had 700 cells
+# at 0.1 mm/h or more against 417). The research behind the nowcast measured
+# everything on whole-cell averages (Denmark-rain-nowcast, radar.py "area"
+# mode). The map image still comes from rate.tif.
+gdal raster calc -q --overwrite -i "$tmp_dir/dbz.tif" -o "$tmp_dir/rate_area.tif" \
+  --ot Float32 --nodata -9999 \
+  --calc "X==-9999 ? -9999 : (((10.0^(X/10.0))/${zr_a})^(1.0/${zr_b}) < ${rate_floor} ? 0 : ((10.0^(X/10.0))/${zr_a})^(1.0/${zr_b}))"
+
+# Reproject from the radar's native polar-stereographic grid (which GDAL
+# derives correctly on its own from this file's /where group) to the same
+# cosine-scaled equirectangular projection MapModel.js uses, cropped and
+# resampled directly to the plugin's fixed map domain/size — this is the
+# only per-frame reprojection step, and it runs once at fetch time, never on
+# every animation tick.
+gdalwarp -q -overwrite -t_srs "$eqc_srs" -te_srs EPSG:4326 \
+  -te "$dk_west" "$dk_south" "$dk_east" "$dk_north" \
+  -ts "$out_width" "$out_height" -r bilinear -dstnodata 0 \
+  "$tmp_dir/rate.tif" "$tmp_dir/rate_eqc.tif"
+
+# Colorize using the same ramp as ColorScale.js (helpers/rain-colorramp.txt,
+# kept in sync by hand; tests/colorscale.test.cjs checks they match).
+gdaldem color-relief -q -alpha "$tmp_dir/rate_eqc.tif" "$ramp_file" "${out_base}.png"
+
+# Warps rate_area.tif to a plain-WGS84 grid over the given bbox at the given
+# resolution, each cell the mean over the radar pixels it covers (dry ones as
+# 0; cells with no coverage come out as 0 in the JSON), and writes it as JSON
+# to the last argument. FORCE_CELLSIZE: the
+# bbox isn't square in degrees, so without this AAIGrid would emit a DX/DY
+# header pair instead of a single CELLSIZE, which asc-to-grid-json.py
+# doesn't parse. These grids are used for interpolation/extrapolation math
+# (and, for the nowcast one, direct fillRect rendering) rather than
+# displayed as an image, so the resulting cell-shape distortion doesn't
+# matter.
+write_grid_json() {
+  local cols="$1" rows="$2" west="$3" south="$4" east="$5" north="$6" out_json="$7"
+  local tag="${cols}x${rows}"
+  local tif="$tmp_dir/grid_${tag}.tif"
+  local asc="$tmp_dir/grid_${tag}.asc"
+  gdalwarp -q -overwrite -t_srs EPSG:4326 \
+    -te "$west" "$south" "$east" "$north" \
+    -ts "$cols" "$rows" -r average -dstnodata -9999 \
+    "$tmp_dir/rate_area.tif" "$tif"
+  gdal_translate -q -of AAIGrid -co FORCE_CELLSIZE=TRUE "$tif" "$asc"
+  python3 "$script_dir/asc-to-grid-json.py" \
+    "$asc" "$west" "$south" "$east" "$north" \
+    > "$out_json"
+}
+
+# Fine grid over the whole map domain, for our own radar-extrapolation
+# nowcast model (see comment at the top of this file).
+write_grid_json "$nowcast_grid_cols" "$nowcast_grid_rows" "$dk_west" "$dk_south" "$dk_east" "$dk_north" "${out_base}.nowcast-grid.json"

@@ -1,0 +1,16 @@
+# gdaldem color-relief ramp for rain rate (mm/h) -> RGBA.
+# MUST be kept in sync by hand with the `stops` array in ../ColorScale.js —
+# tests/colorscale.test.cjs parses both and fails the build if they diverge.
+# Format: value R G B A  (gdaldem interpolates linearly between entries)
+0     0   0   0   0
+0.1   180 225 255 40
+0.5   120 196 255 110
+1     66  146 244 170
+2.5   52  180 138 205
+5     105 201 70  220
+10    240 214 60  230
+20    240 140 40  240
+35    219 60  53  245
+60    178 50  196 250
+100   120 20  140 255
+nv    0   0   0   0
