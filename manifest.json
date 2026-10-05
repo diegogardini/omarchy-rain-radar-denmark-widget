@@ -2,9 +2,9 @@
   "schemaVersion": 1,
   "id": "io.github.diegogardini.omarchy-rain-radar-denmark-widget",
   "name": "Rain Radar Denmark",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "author": "diegogardini",
-  "description": "Animated DMI rain radar (observed + forecast) over a Denmark map",
+  "description": "The best rain radar for Omarchy in Denmark: live DMI radar, research-backed 90-minute nowcast and honest chances of rain",
   "kinds": [
     "bar-widget"
   ],
@@ -13,7 +13,7 @@
   },
   "barWidget": {
     "displayName": "Rain Radar Denmark",
-    "description": "Animated radar + forecast rain map for Denmark",
+    "description": "Will it rain here, and when? DMI radar, a 90-minute nowcast and the chance of rain",
     "category": "Weather",
     "defaultSection": "center",
     "allowMultiple": false,

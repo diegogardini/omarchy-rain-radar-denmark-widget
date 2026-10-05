@@ -9,6 +9,12 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.0.1 — 2026-10-05
+
+- The plugin's descriptions say what it answers: the chance of rain at your
+  place, from a research-backed nowcast.
+- A preview image (`preview.png`) for the Omarchy plugin marketplace.
+
 ## 1.0.0 — 2026-10-05
 
 The first public release.
