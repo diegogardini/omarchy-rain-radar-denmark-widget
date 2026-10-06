@@ -56,6 +56,17 @@ RATE_FLOOR = 0.05
 LATTICE = 16
 GEOMETRY_VERSION = 1
 
+# Limits, far above DMI's files (about 200 kB, 1728 x 1984 bytes, 128 chunks),
+# so a damaged or hostile file is refused instead of using memory or time.
+MAX_FILE_BYTES = 20_000_000
+MAX_GRID_SIDE = 8192
+MAX_GRID_BYTES = 32_000_000
+MAX_MESSAGES = 1024
+MAX_TREE_DEPTH = 16
+MAX_ENTRIES = 65536
+MAX_ATTR_VALUES = 4096
+SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
+
 
 class Unsupported(Exception):
     pass
@@ -75,31 +86,45 @@ class H5:
         # root group's symbol table entry: name offset, object header address
         self.root = self.u64(56 + 8)
 
+    def check(self, o, n=1):
+        if o < 0 or o + n > len(self.d):
+            raise Unsupported("a pointer leaves the file")
+        return o
+
     def u8(self, o):
-        return self.d[o]
+        return self.d[self.check(o)]
 
     def u16(self, o):
-        return struct.unpack_from("<H", self.d, o)[0]
+        return struct.unpack_from("<H", self.d, self.check(o, 2))[0]
 
     def u32(self, o):
-        return struct.unpack_from("<I", self.d, o)[0]
+        return struct.unpack_from("<I", self.d, self.check(o, 4))[0]
 
     def u64(self, o):
-        return struct.unpack_from("<Q", self.d, o)[0]
+        return struct.unpack_from("<Q", self.d, self.check(o, 8))[0]
+
+    def bytes_at(self, o, n):
+        return self.d[self.check(o, n):o + n]
 
     def messages(self, addr):
         """(type, offset, size) of every message in a version 1 object header."""
         if self.u8(addr) != 1:
             raise Unsupported("object header version %d (expected 1)" % self.u8(addr))
-        count = self.u16(addr + 2)
+        count = min(self.u16(addr + 2), MAX_MESSAGES)
         blocks = [(addr + 16, self.u32(addr + 8))]
+        seen = set()
         out = []
         while blocks and len(out) < count:
             start, size = blocks.pop(0)
+            if start in seen:
+                raise Unsupported("an object header loops")
+            seen.add(start)
+            self.check(start, size)
             o = start
             while o + 8 <= start + size and len(out) < count:
                 mtype, msize = self.u16(o), self.u16(o + 2)
                 body = o + 8
+                self.check(body, msize)
                 if mtype == 0x10:  # continuation
                     blocks.append((self.u64(body), self.u64(body + 8)))
                 out.append((mtype, body, msize))
@@ -114,13 +139,17 @@ class H5:
                 break
         else:
             return {}
-        if self.d[heap:heap + 4] != b"HEAP":
+        if self.bytes_at(heap, 4) != b"HEAP":
             raise Unsupported("group without a local heap")
         heap_data = self.u64(heap + 24)
         out = {}
+        seen = set()
 
-        def node(a):
-            if self.d[a:a + 4] != b"TREE":
+        def node(a, depth=0):
+            if depth > MAX_TREE_DEPTH or a in seen or len(seen) > MAX_ENTRIES:
+                raise Unsupported("a group B-tree loops or is too deep")
+            seen.add(a)
+            if self.bytes_at(a, 4) != b"TREE":
                 raise Unsupported("bad group B-tree")
             level, used = self.u8(a + 5), self.u16(a + 6)
             o = a + 24 + 8  # past the header and the first key
@@ -128,15 +157,18 @@ class H5:
                 child = self.u64(o)
                 o += 16
                 if level > 0:
-                    node(child)
+                    node(child, depth + 1)
                 else:
-                    if self.d[child:child + 4] != b"SNOD":
+                    if self.bytes_at(child, 4) != b"SNOD":
                         raise Unsupported("bad symbol node")
                     for k in range(self.u16(child + 6)):
                         e = child + 8 + 40 * k
                         name_off, header = self.u64(e), self.u64(e + 8)
-                        n = heap_data + name_off
-                        out[self.d[n:self.d.index(b"\0", n)].decode()] = header
+                        n = self.check(heap_data + name_off)
+                        end = self.d.find(b"\0", n, n + 256)
+                        if end < 0:
+                            raise Unsupported("a name without an end")
+                        out[self.d[n:end].decode("ascii", "replace")] = header
         node(btree)
         return out
 
@@ -157,6 +189,9 @@ class H5:
         cls_ver = self.u8(dtype_o)
         cls, bits0 = cls_ver & 0x0F, self.u8(dtype_o + 1)
         size = self.u32(dtype_o + 4)
+        if count > MAX_ATTR_VALUES or size > 65536:
+            raise Unsupported("an attribute is too large")
+        self.check(o, size * count)
         if cls == 3:  # string
             return self.d[o:o + size].split(b"\0")[0].decode("ascii", "replace")
         if cls == 0:  # fixed-point
@@ -219,19 +254,29 @@ class H5:
                         p += 4
         if shape is None or len(shape) != 2 or layout is None:
             raise Unsupported("the radar dataset is not a 2-D grid")
+        if not (0 < shape[0] <= MAX_GRID_SIDE and 0 < shape[1] <= MAX_GRID_SIDE and shape[0] * shape[1] <= MAX_GRID_BYTES):
+            raise Unsupported("the radar grid is %d x %d" % tuple(shape))
         if self.u8(layout) != 3 or self.u8(layout + 1) != 2:
             raise Unsupported("the radar dataset is not stored in chunks")
         if any(f != 1 for f in filters):
             raise Unsupported("the radar dataset uses filters other than deflate")
         dims = self.u8(layout + 2)
+        if dims != 3:
+            raise Unsupported("the radar chunks have %d dimensions" % dims)
         btree = self.u64(layout + 3)
         chunk = [self.u32(layout + 11 + 4 * k) for k in range(dims)]
         rows, cols = shape
         crow, ccol = chunk[0], chunk[1]
+        if not (0 < crow <= rows and 0 < ccol <= cols) or chunk[2] != 1:
+            raise Unsupported("bad chunk size")
         out = bytearray(rows * cols)
+        seen = set()
 
-        def node(a):
-            if self.d[a:a + 4] != b"TREE" or self.u8(a + 4) != 1:
+        def node(a, depth=0):
+            if depth > MAX_TREE_DEPTH or a in seen or len(seen) > MAX_ENTRIES:
+                raise Unsupported("a chunk B-tree loops or is too deep")
+            seen.add(a)
+            if self.bytes_at(a, 4) != b"TREE" or self.u8(a + 4) != 1:
                 raise Unsupported("bad chunk B-tree")
             level, used = self.u8(a + 5), self.u16(a + 6)
             key = 8 + 8 * dims
@@ -241,10 +286,22 @@ class H5:
                 r0, c0 = self.u64(o + 8), self.u64(o + 16)
                 child = self.u64(o + key)
                 if level > 0:
-                    node(child)
+                    node(child, depth + 1)
                 else:
-                    raw = self.d[child:child + size]
-                    block = raw if (mask & 1) or not filters else zlib.decompress(raw)
+                    if r0 >= rows or c0 >= cols or r0 % crow or c0 % ccol:
+                        raise Unsupported("a chunk lies outside the grid")
+                    raw = self.bytes_at(child, size)
+                    want = crow * ccol
+                    if (mask & 1) or not filters:
+                        block = raw
+                    else:
+                        # never inflate past the chunk's own size
+                        z = zlib.decompressobj()
+                        block = z.decompress(raw, want)
+                        if z.unconsumed_tail:
+                            raise Unsupported("a chunk inflates past its size")
+                    if len(block) != want:
+                        raise Unsupported("a chunk has the wrong size")
                     h, w = min(crow, rows - r0), min(ccol, cols - c0)
                     for r in range(h):
                         out[(r0 + r) * cols + c0:(r0 + r) * cols + c0 + w] = block[r * ccol:r * ccol + w]
@@ -428,7 +485,13 @@ def write_png(path, width, height, rgba):
 
 
 def convert(in_path, out_base, ramp_path):
-    h5 = H5(open(in_path, "rb").read())
+    # the output stays in its own folder: a plain file name, no path in it
+    if not SAFE_NAME.match(os.path.basename(out_base)) or not os.path.isdir(os.path.dirname(os.path.abspath(out_base))):
+        raise Unsupported("unsafe output name %r" % out_base)
+    if os.path.getsize(in_path) > MAX_FILE_BYTES:
+        raise Unsupported("the file is larger than %d bytes" % MAX_FILE_BYTES)
+    with open(in_path, "rb") as f:
+        h5 = H5(f.read(MAX_FILE_BYTES + 1))
     what = h5.attrs(h5.path("/what"))
     how = h5.attrs(h5.path("/how"))
     where = h5.attrs(h5.path("/where"))
@@ -524,6 +587,9 @@ def main():
         convert(sys.argv[1], sys.argv[2], ramp)
     except Unsupported as e:
         sys.stderr.write("dmi-radar-convert: unsupported radar file: %s\n" % e)
+        return 2
+    except (struct.error, IndexError, KeyError, ValueError, TypeError, ZeroDivisionError, zlib.error, MemoryError) as e:
+        sys.stderr.write("dmi-radar-convert: unreadable radar file: %s\n" % e)
         return 2
     return 0
 

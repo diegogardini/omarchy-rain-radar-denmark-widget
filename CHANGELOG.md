@@ -9,6 +9,19 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.1.1 — 2026-10-06
+
+Safer handling of what comes from the network (marketplace review):
+
+- Scan names from DMI's list must match DMI's own file names
+  (`dk.com.YYYYMMDDHHMM.500_max.h5`) before they name any file; anything else
+  is dropped. Scans are downloaded from DMI's address for that name, over
+  HTTPS only, whatever link the list gives.
+- Downloads are capped (2 MB for the list, 20 MB for a scan; a scan is about
+  200 kB), and the converter refuses files over 20 MB, grids over 8192 x 8192,
+  chunks that inflate past their size, pointers that leave the file, and
+  looping or over-deep trees. It writes only into its own folder.
+
 ## 1.1.0 — 2026-10-06
 
 - **No more GDAL.** DMI's radar files are now read by a small script that

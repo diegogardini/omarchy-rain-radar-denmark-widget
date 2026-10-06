@@ -111,7 +111,8 @@ Item {
     var end = new Date()
     var start = new Date(end.getTime() - 2 * 3600 * 1000)
     var url = RadarModel.buildItemsUrl(MapModel.dmiBbox, start.toISOString(), end.toISOString())
-    itemsProc.command = ["curl", "-fsSL", "--max-time", "15", url]
+    // the scan list is a few kB; 2 MB is far more than it ever needs
+    itemsProc.command = ["curl", "-fsSL", "--proto", "=https", "--max-time", "15", "--max-filesize", "2000000", url]
     itemsProc.responseText = ""
     itemsProc.running = true
   }
@@ -131,10 +132,15 @@ Item {
     if (radarConvertProc.running) return
     if (root.radarDownloadQueue.length === 0) { rebuildObservedFromDisk(); return }
     var item = root.radarDownloadQueue.shift()
+    // the id names files in the cache: only DMI's own pattern (no "/" or "..")
+    // ever gets here, checked again right where the paths are built
+    if (!RadarModel.isSafeScanId(item.id)) { processRadarQueue(); return }
     var rawPath = root.rawDir + "/" + item.id + ".h5"
     var outBase = root.framesDir + "/" + item.id
     radarConvertProc.currentItem = item
-    radarConvertProc.command = ["curl", "-fsSL", "--max-time", "20", "-o", rawPath, item.downloadUrl]
+    // HTTPS to DMI only, and at most 20 MB (a scan is about 200 kB)
+    radarConvertProc.command = ["curl", "-fsSL", "--proto", "=https", "--max-time", "20", "--max-filesize", "20000000",
+                                "-o", rawPath, RadarModel.downloadUrl(item.id)]
     radarConvertProc.stage = "download"
     radarConvertProc.rawPath = rawPath
     radarConvertProc.outBase = outBase
@@ -376,7 +382,8 @@ Item {
         root.loading = false
         return
       }
-      var items = RadarModel.fullRangeOnly(RadarModel.parseItemsResponse(itemsProc.responseText))
+      // a list far beyond what DMI sends is not read at all
+      var items = itemsProc.responseText.length > 2000000 ? [] : RadarModel.fullRangeOnly(RadarModel.parseItemsResponse(itemsProc.responseText))
       if (root.converterStatus === "missing") { root.errorMessage = root.converterMissingMessage; root.loading = false; return }
       root.queueRadarDownloads(items)
     }

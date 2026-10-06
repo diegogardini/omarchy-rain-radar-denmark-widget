@@ -12,6 +12,15 @@
 
 var API_ROOT = "https://opendataapi.dmi.dk/v1/radardata"
 
+// A scan's id becomes a file name in the widget's cache (and the converter's
+// input and output), so only DMI's own pattern is accepted: an id from the
+// API with anything else (a path, "..", another name) is dropped.
+var SCAN_ID = /^dk\.com\.[0-9]{12}\.500_max\.h5$/
+
+function isSafeScanId(id) {
+  return typeof id === "string" && SCAN_ID.test(id)
+}
+
 function buildItemsUrl(bbox, startIso, endIso, limit) {
   return API_ROOT + "/collections/composite/items"
     + "?bbox=" + encodeURIComponent(bbox)
@@ -38,8 +47,9 @@ function parseItemsResponse(raw) {
       var href = f.asset && f.asset.data && f.asset.data.href
       var id = String(f.id || "")
       var datetime = String(props.datetime || "")
-      if (!id || !datetime || !href) continue
-      items.push({ id: id, datetime: datetime, downloadUrl: String(href), scanType: String(props.scanType || "") })
+      if (!isSafeScanId(id) || !datetime || !href) continue
+      // downloaded from DMI's own address for that id, whatever the response says
+      items.push({ id: id, datetime: datetime, downloadUrl: downloadUrl(id), scanType: String(props.scanType || "") })
     }
     items.sort(function(a, b) { return a.datetime < b.datetime ? -1 : (a.datetime > b.datetime ? 1 : 0) })
     return items
@@ -96,6 +106,7 @@ function pixelToDbz(raw, gain, offset, nodata) {
 
 if (typeof module !== "undefined") module.exports = {
   buildItemsUrl: buildItemsUrl,
+  isSafeScanId: isSafeScanId,
   downloadUrl: downloadUrl,
   parseItemsResponse: parseItemsResponse,
   fullRangeOnly: fullRangeOnly,

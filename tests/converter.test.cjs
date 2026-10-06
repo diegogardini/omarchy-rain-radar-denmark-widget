@@ -67,3 +67,28 @@ test('a file that is not a DMI scan stops with exit code 2, not a wrong picture'
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('a damaged file, or an output outside its folder, is refused with exit code 2', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rain-radar-convert-'))
+  const run = (input, out) => {
+    try { execFileSync('python3', [path.join(__dirname, '..', 'helpers', 'dmi-radar-convert.py'), input, out], { stdio: 'pipe' }); return 0 } catch (e) { return e.status }
+  }
+  try {
+    const whole = fs.readFileSync(fixture)
+    // cut short: pointers into the missing part must not crash or read past the end
+    const cut = path.join(dir, 'cut.h5')
+    fs.writeFileSync(cut, whole.subarray(0, 60000))
+    assert.equal(run(cut, path.join(dir, 'out')), 2)
+    // a chunk's compressed bytes damaged
+    const bent = Buffer.from(whole)
+    for (let i = 20000; i < 20400; i++) bent[i] ^= 0x5a
+    const bad = path.join(dir, 'bent.h5')
+    fs.writeFileSync(bad, bent)
+    assert.equal(run(bad, path.join(dir, 'out')), 2)
+    // the output name may not leave its folder
+    assert.equal(run(fixture, path.join(dir, '..', '..', 'tmp', '.hidden')), 2)
+    assert.equal(fs.existsSync(path.join(dir, 'out.png')), false)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})

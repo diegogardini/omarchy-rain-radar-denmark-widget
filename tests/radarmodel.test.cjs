@@ -69,3 +69,20 @@ test('fullRangeOnly keeps everything when DMI does not label the scans', () => {
   const items = [{ id: 'a', scanType: '' }, { id: 'b', scanType: '' }]
   assert.deepEqual(RadarModel.fullRangeOnly(items), items)
 })
+
+test('scan ids from the API must be DMI\'s own file names; anything else is dropped', () => {
+  for (const ok of ['dk.com.202610060540.500_max.h5', 'dk.com.202607200405.500_max.h5']) assert.ok(RadarModel.isSafeScanId(ok), ok)
+  for (const bad of ['../dk.com.202610060540.500_max.h5', 'dk.com.202610060540.500_max.h5/../../x', '/etc/passwd', '..',
+    'dk.com.20261006054.500_max.h5', 'dk.com.202610060540.500_max.h5 ', '', null, 42]) {
+    assert.equal(RadarModel.isSafeScanId(bad), false, String(bad))
+  }
+  const feature = (id, href) => ({ id, properties: { datetime: '2026-10-06T05:40:00Z', scanType: 'fullRange' }, asset: { data: { href } } })
+  const raw = JSON.stringify({ features: [
+    feature('../../../.bashrc', 'https://opendataapi.dmi.dk/v1/radardata/download/x'),
+    feature('dk.com.202610060540.500_max.h5', 'https://evil.example/dk.com.202610060540.500_max.h5'),
+  ] })
+  const items = RadarModel.parseItemsResponse(raw)
+  assert.equal(items.length, 1)
+  // the download goes to DMI's address for the id, not to the href in the response
+  assert.equal(items[0].downloadUrl, 'https://opendataapi.dmi.dk/v1/radardata/download/dk.com.202610060540.500_max.h5')
+})
