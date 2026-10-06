@@ -44,6 +44,7 @@ import json
 import math
 import os
 import re
+import signal
 import struct
 import sys
 import zlib
@@ -63,8 +64,9 @@ MAX_GRID_SIDE = 8192
 MAX_GRID_BYTES = 32_000_000
 MAX_MESSAGES = 1024
 MAX_TREE_DEPTH = 16
-MAX_ENTRIES = 65536
 MAX_ATTR_VALUES = 4096
+MAX_GROUP_ENTRIES = 1024   # B-tree entries and symbols read for one group (DMI's have under 10)
+DEADLINE_SECONDS = 30      # the whole conversion; a scan takes about a second
 SAFE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._-]*$")
 
 
@@ -143,15 +145,22 @@ class H5:
             raise Unsupported("group without a local heap")
         heap_data = self.u64(heap + 24)
         out = {}
-        seen = set()
+        seen = set()     # tree nodes and symbol nodes: each may be read once
+        budget = [MAX_GROUP_ENTRIES]
+
+        def spend(n):
+            budget[0] -= n
+            if budget[0] < 0:
+                raise Unsupported("a group lists more entries than a radar file has")
 
         def node(a, depth=0):
-            if depth > MAX_TREE_DEPTH or a in seen or len(seen) > MAX_ENTRIES:
+            if depth > MAX_TREE_DEPTH or a in seen:
                 raise Unsupported("a group B-tree loops or is too deep")
             seen.add(a)
             if self.bytes_at(a, 4) != b"TREE":
                 raise Unsupported("bad group B-tree")
             level, used = self.u8(a + 5), self.u16(a + 6)
+            spend(used)
             o = a + 24 + 8  # past the header and the first key
             for _ in range(used):
                 child = self.u64(o)
@@ -159,9 +168,14 @@ class H5:
                 if level > 0:
                     node(child, depth + 1)
                 else:
+                    if child in seen:
+                        raise Unsupported("a symbol node is listed twice")
+                    seen.add(child)
                     if self.bytes_at(child, 4) != b"SNOD":
                         raise Unsupported("bad symbol node")
-                    for k in range(self.u16(child + 6)):
+                    symbols = self.u16(child + 6)
+                    spend(symbols)
+                    for k in range(symbols):
                         e = child + 8 + 40 * k
                         name_off, header = self.u64(e), self.u64(e + 8)
                         n = self.check(heap_data + name_off)
@@ -271,14 +285,20 @@ class H5:
             raise Unsupported("bad chunk size")
         out = bytearray(rows * cols)
         seen = set()
+        placed = set()   # each chunk position may be filled once
+        chunks = -(-rows // crow) * -(-cols // ccol)
+        budget = [4 * chunks + 64]  # entries read, leaves and inner nodes together
 
         def node(a, depth=0):
-            if depth > MAX_TREE_DEPTH or a in seen or len(seen) > MAX_ENTRIES:
+            if depth > MAX_TREE_DEPTH or a in seen:
                 raise Unsupported("a chunk B-tree loops or is too deep")
             seen.add(a)
             if self.bytes_at(a, 4) != b"TREE" or self.u8(a + 4) != 1:
                 raise Unsupported("bad chunk B-tree")
             level, used = self.u8(a + 5), self.u16(a + 6)
+            budget[0] -= used
+            if budget[0] < 0:
+                raise Unsupported("the chunk tree lists more chunks than the grid holds")
             key = 8 + 8 * dims
             o = a + 24
             for _ in range(used):
@@ -290,6 +310,9 @@ class H5:
                 else:
                     if r0 >= rows or c0 >= cols or r0 % crow or c0 % ccol:
                         raise Unsupported("a chunk lies outside the grid")
+                    if (r0, c0) in placed:
+                        raise Unsupported("a chunk is listed twice")
+                    placed.add((r0, c0))
                     raw = self.bytes_at(child, size)
                     want = crow * ccol
                     if (mask & 1) or not filters:
@@ -583,6 +606,13 @@ def main():
         sys.stderr.write("usage: dmi-radar-convert.py <input.h5> <output-basename>\n")
         return 1
     ramp = os.path.join(os.path.dirname(os.path.abspath(__file__)), "rain-colorramp.txt")
+
+    # a hard deadline, whatever the file does: the widget's queue must not stall
+    def too_long(signum, frame):
+        raise Unsupported("the conversion took over %d s" % DEADLINE_SECONDS)
+    if hasattr(signal, "SIGALRM"):
+        signal.signal(signal.SIGALRM, too_long)
+        signal.alarm(DEADLINE_SECONDS)
     try:
         convert(sys.argv[1], sys.argv[2], ramp)
     except Unsupported as e:

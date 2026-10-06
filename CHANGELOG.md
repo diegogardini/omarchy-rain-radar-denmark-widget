@@ -9,6 +9,24 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.1.2 — 2026-10-06
+
+From the marketplace review of 1.1.1:
+
+- The converter reads each B-tree and symbol node of a radar file at most
+  once, within a budget of entries sized to what a radar file holds (1024 per
+  group; for the data, four times the grid's number of chunks), and each chunk
+  position once. A small crafted file can no longer make it parse entries over
+  and over.
+- A conversion stops after 30 s, and the widget runs it under `timeout 60`, so
+  a bad file can never stall the radar queue.
+
+Also:
+
+- With little rain on the map, a pair of radar scans can give no measurable
+  motion, and those radar frames jumped instead of gliding. They now glide
+  along the nowcast's 30-minute motion.
+
 ## 1.1.1 — 2026-10-06
 
 Safer handling of what comes from the network (marketplace review):

@@ -92,3 +92,35 @@ test('a damaged file, or an output outside its folder, is refused with exit code
     fs.rmSync(dir, { recursive: true, force: true })
   }
 })
+
+test('a group or chunk tree that repeats an entry is refused at once (no repeated parsing)', () => {
+  const whole = fs.readFileSync(fixture)
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'rain-radar-convert-'))
+  const run = (bytes) => {
+    const p = path.join(dir, 'x.h5')
+    fs.writeFileSync(p, bytes)
+    const t = Date.now()
+    let code = 0
+    try { execFileSync('python3', [path.join(__dirname, '..', 'helpers', 'dmi-radar-convert.py'), p, path.join(dir, 'out')], { stdio: 'pipe', timeout: 20000 }) } catch (e) { code = e.status }
+    return { code, ms: Date.now() - t }
+  }
+  try {
+    // the root group's B-tree (superblock 0 caches its address in the root entry's
+    // scratch space): list its symbol node twice
+    const btree = Number(whole.readBigUInt64LE(56 + 24))
+    assert.equal(whole.toString('latin1', btree, btree + 4), 'TREE')
+    const twice = Buffer.from(whole)
+    twice.writeUInt16LE(2, btree + 6)                        // two entries used
+    twice.writeBigUInt64LE(whole.readBigUInt64LE(btree + 24), btree + 40) // key 1 = key 0
+    twice.writeBigUInt64LE(whole.readBigUInt64LE(btree + 32), btree + 48) // child 1 = child 0
+    const r1 = run(twice)
+    assert.equal(r1.code, 2)
+    assert.ok(r1.ms < 10000, `took ${r1.ms} ms`)
+    // the same node claiming 65535 entries: over budget before any is read
+    const many = Buffer.from(whole)
+    many.writeUInt16LE(65535, btree + 6)
+    assert.equal(run(many).code, 2)
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true })
+  }
+})

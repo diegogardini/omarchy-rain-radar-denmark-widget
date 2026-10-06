@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.diegogardini.omarchy-rain-radar-denmark-widget",
   "name": "Rain Radar Denmark",
-  "version": "1.1.1",
+  "version": "1.1.2",
   "author": "diegogardini",
   "description": "The best rain radar for Omarchy in Denmark: live DMI radar, research-backed 90-minute nowcast and honest chances of rain",
   "kinds": [

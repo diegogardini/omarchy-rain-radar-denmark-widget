@@ -320,8 +320,12 @@ Item {
     // scan), the last along the nowcast's, whose first step is exactly that
     // scan moved one step. Then the next real scan replaces it: every pixel
     // stays a measured value, and the small jump shows what changed.
+    // With little rain on the map a pair may give no measurable motion (on
+    // 2026-10-06 the first three pairs, 58-71 wet cells, did not): that scan
+    // glides along the nowcast's 30-minute motion instead of standing still,
+    // the wind being nearly steady over the hour.
     for (var i = 0; i < observedFrames.length; i++)
-      observedFrames[i].motion = i + 1 < observedFrames.length ? root.observedPairMotion(i) : root.radarNowcastMotion
+      observedFrames[i].motion = (i + 1 < observedFrames.length ? root.observedPairMotion(i) : null) || root.radarNowcastMotion
     root.nowIndex = observedFrames.length
     root.frames = observedFrames.concat(forecastFrames)
     root.errorMessage = ""
@@ -399,7 +403,9 @@ Item {
       if (radarConvertProc.stage === "download") {
         if (exitCode !== 0) { root.processRadarQueue(); return }
         radarConvertProc.stage = "convert"
-        radarConvertProc.command = ["python3", root.helperScript, radarConvertProc.rawPath, radarConvertProc.outBase]
+        // the converter stops itself after 30 s; `timeout` is the backstop, so a
+        // bad file can never stall the queue
+        radarConvertProc.command = ["timeout", "60", "python3", root.helperScript, radarConvertProc.rawPath, radarConvertProc.outBase]
         radarConvertProc.running = true
         return
       }
