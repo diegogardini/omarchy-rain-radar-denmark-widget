@@ -5,18 +5,22 @@ const path = require('node:path')
 const MapModel = require('../MapModel.js')
 const MapData = require('../MapData.js')
 
-const helper = fs.readFileSync(path.join(__dirname, '..', 'helpers', 'dmi-radar-to-png'), 'utf8')
-const shellNumber = (name) => {
-  const m = helper.match(new RegExp('^' + name + '=(-?[0-9.]+)\\s*$', 'm'))
-  assert.ok(m, `helpers/dmi-radar-to-png should define ${name}=<number>`)
-  return Number(m[1])
+const helper = fs.readFileSync(path.join(__dirname, '..', 'helpers', 'dmi-radar-convert.py'), 'utf8')
+// the converter's constants: `WEST, SOUTH, EAST, NORTH = 5.0, ...` and `PNG_W, PNG_H = 640, 458`
+const pyNumbers = (names) => {
+  const m = helper.match(new RegExp('^' + names.join(', ') + ' = ([-0-9., ]+)$', 'm'))
+  assert.ok(m, `helpers/dmi-radar-convert.py should define ${names.join(', ')}`)
+  return m[1].split(',').map(Number)
 }
+const [west, south, east, north] = pyNumbers(['WEST', 'SOUTH', 'EAST', 'NORTH'])
+const [pngW, pngH] = pyNumbers(['PNG_W', 'PNG_H'])
+const [gridCols, gridRows] = pyNumbers(['GRID_COLS', 'GRID_ROWS'])
 
-test('helpers/dmi-radar-to-png map domain matches MapModel.bounds', () => {
-  assert.equal(shellNumber('dk_west'), MapModel.bounds.west)
-  assert.equal(shellNumber('dk_east'), MapModel.bounds.east)
-  assert.equal(shellNumber('dk_south'), MapModel.bounds.south)
-  assert.equal(shellNumber('dk_north'), MapModel.bounds.north)
+test('helpers/dmi-radar-convert.py map domain matches MapModel.bounds', () => {
+  assert.equal(west, MapModel.bounds.west)
+  assert.equal(east, MapModel.bounds.east)
+  assert.equal(south, MapModel.bounds.south)
+  assert.equal(north, MapModel.bounds.north)
 })
 
 test('the Denmark region lies inside the map domain', () => {
@@ -25,14 +29,14 @@ test('the Denmark region lies inside the map domain', () => {
 })
 
 test('radar PNG size has the map domain\'s aspect ratio (else it would be stretched against the coastlines)', () => {
-  const pngAspect = shellNumber('out_width') / shellNumber('out_height')
+  const pngAspect = pngW / pngH
   assert.ok(Math.abs(pngAspect / MapModel.dataAspect - 1) < 0.005, `png aspect ${pngAspect} vs map ${MapModel.dataAspect}`)
 })
 
 test('nowcast grid cells are ~square on the ground', () => {
   const b = MapModel.bounds
-  const cellEast = (b.east - b.west) * MapModel.longitudeScale / shellNumber('nowcast_grid_cols')
-  const cellNorth = (b.north - b.south) / shellNumber('nowcast_grid_rows')
+  const cellEast = (b.east - b.west) * MapModel.longitudeScale / gridCols
+  const cellNorth = (b.north - b.south) / gridRows
   assert.ok(Math.abs(cellEast / cellNorth - 1) < 0.01, `cells ${cellEast} x ${cellNorth} deg`)
 })
 

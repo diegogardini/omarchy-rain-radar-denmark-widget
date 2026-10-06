@@ -67,10 +67,11 @@ publishes 12–13 minutes late.
 
 ## Install
 
-Needs [GDAL](https://gdal.org) 3.11 or newer to read DMI's radar files:
+Nothing else to install: it works on a standard Omarchy install. DMI's radar
+files are read by a small Python script that uses only Python's standard
+library (`helpers/dmi-radar-convert.py`).
 
 ```bash
-sudo pacman -S gdal
 omarchy plugin add https://github.com/diegogardini/omarchy-rain-radar-denmark-widget.git --enable
 ```
 

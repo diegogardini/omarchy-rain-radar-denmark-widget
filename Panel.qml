@@ -213,9 +213,9 @@ Panel {
   // With a location set, the icon shows the rain at that spot; without one,
   // the peak over the Denmark region.
   readonly property real barMm: pin && pointNowMm !== null ? pointNowMm : peakMm
-  readonly property string barLabel: dataService.gdalStatus === "missing" ? "󰼓 —" : "󰖗 " + barMm.toFixed(1)
-  readonly property string tooltip: dataService.gdalStatus === "missing"
-    ? "Rain radar · Denmark (needs GDAL to read the radar)"
+  readonly property string barLabel: dataService.converterStatus === "missing" ? "󰼓 —" : "󰖗 " + barMm.toFixed(1)
+  readonly property string tooltip: dataService.converterStatus === "missing"
+    ? "Rain radar · Denmark (needs Python 3 to read the radar)"
     : (pin && pointNowMm !== null
       ? "Rain radar · " + (pin.name || "Pinned location") + " · " + root.pointSummary
       : "Rain radar · Denmark · peak " + peakMm.toFixed(1) + " mm/h")
@@ -263,7 +263,8 @@ Panel {
     function status(): string {
       return JSON.stringify({
         loading: dataService.loading,
-        gdalStatus: dataService.gdalStatus,
+        converterStatus: dataService.converterStatus,
+        gdalStatus: dataService.converterStatus, // the former name, kept for scripts until 2.0
         frames: dataService.frames.length,
         nowIndex: dataService.nowIndex,
         peakMm: root.peakMm,
@@ -762,9 +763,9 @@ Panel {
 
           Text {
             width: parent.width
-            visible: dataService.gdalStatus === "missing"
+            visible: dataService.converterStatus === "missing" || (dataService.converterError !== "" && playback.frames.length === 0)
             wrapMode: Text.WordWrap
-            text: "⚠ " + dataService.gdalMissingMessage
+            text: "⚠ " + (dataService.converterStatus === "missing" ? dataService.converterMissingMessage : dataService.converterError)
             color: Color.urgent
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
@@ -776,7 +777,7 @@ Panel {
             // alarming red banner just because the most recent background
             // refresh attempt (e.g. rate-limited) hasn't landed yet.
             width: parent.width
-            visible: dataService.errorMessage !== "" && playback.frames.length === 0 && dataService.gdalStatus !== "missing"
+            visible: dataService.errorMessage !== "" && playback.frames.length === 0 && dataService.converterStatus !== "missing"
             wrapMode: Text.WordWrap
             text: dataService.errorMessage
             color: Color.urgent

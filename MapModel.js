@@ -7,8 +7,8 @@
 // North Sea to the west (weather arrives from there, so rain has to be
 // in-frame *before* it reaches the coast for the nowcast to carry it in),
 // the Skagerrak/Kattegat/Baltic, and the neighbouring countries for context.
-// helpers/dmi-radar-to-png keeps its own copy of these numbers (bash can't
-// import this) — tests/maprange.test.cjs fails if they drift apart.
+// helpers/dmi-radar-convert.py keeps its own copy of these numbers (Python
+// can't import this) — tests/maprange.test.cjs fails if they drift apart.
 var bounds = { west: 5.0, east: 16.5, south: 53.9, north: 58.5 }
 var longitudeScale = Math.cos(56 * Math.PI / 180)
 

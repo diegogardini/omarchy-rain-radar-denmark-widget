@@ -9,6 +9,17 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.1.0 — 2026-10-06
+
+- **No more GDAL.** DMI's radar files are now read by a small script that
+  needs only Python's standard library, so the widget works on a standard
+  Omarchy install with nothing else to install. Checked against GDAL on real
+  scans: the same rain, cell for cell (correlation 0.9995 or better, the total
+  within 0.25%), and about twice as fast once its placement cache is built.
+- Old converted scans are removed after 6 hours; the cache no longer grows by
+  about 60 MB a day. The first refresh after updating clears what has piled up.
+- IPC `status` reports `converterStatus`; `gdalStatus` stays as an alias until 2.0.
+
 ## 1.0.1 — 2026-10-05
 
 - The plugin's descriptions say what it answers: the chance of rain at your

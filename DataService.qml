@@ -17,13 +17,15 @@ Item {
 
   property int refreshMinutes: 10
   readonly property string pluginDir: String(Qt.resolvedUrl(".")).replace("file://", "")
-  readonly property string helperScript: pluginDir + "helpers/dmi-radar-to-png"
+  // Reads DMI's HDF5 scans with Python's standard library alone (no GDAL).
+  readonly property string helperScript: pluginDir + "helpers/dmi-radar-convert.py"
   readonly property string cacheRoot: (Quickshell.env("XDG_STATE_HOME") || (Quickshell.env("HOME") + "/.local/state")) + "/omarchy/cache/rain-radar-denmark"
   readonly property string framesDir: cacheRoot + "/frames"
   readonly property string rawDir: cacheRoot + "/raw"
 
-  // "unknown" while the check hasn't run yet, then "available" or "missing".
-  property string gdalStatus: "unknown"
+  // Whether the scans can be converted (python3 runs): "unknown" while the
+  // check hasn't run yet, then "available" or "missing".
+  property string converterStatus: "unknown"
   property bool loading: false
   property string errorMessage: ""
 
@@ -69,17 +71,21 @@ Item {
   property real lastObservedPeakMm: 0
   property var processedIds: ({}) // set of radar item ids already converted this session
 
-  // DMI's radar scans are HDF5 files that only GDAL reads here: without it
-  // there is nothing to show, so say so instead of waiting.
-  readonly property string gdalMissingMessage: "GDAL is needed to read DMI's radar scans. Install it with: sudo pacman -S gdal"
+  // The scans are read by a Python script (standard library only; every
+  // Omarchy install has python3). Without it there is nothing to show, so say
+  // so instead of waiting.
+  readonly property string converterMissingMessage: "Python 3 is needed to read DMI's radar scans, and was not found."
+  // Set when the converter cannot read a scan at all (exit code 2: DMI changed
+  // the file layout), so the panel can say why nothing shows.
+  property string converterError: ""
 
   function shQuote(s) { return "'" + String(s).replace(/'/g, "'\\''") + "'" }
 
   function start() {
     mkdirProc.command = ["mkdir", "-p", root.framesDir, root.rawDir]
     mkdirProc.running = true
-    gdalCheckProc.command = ["bash", "-c", "command -v gdalinfo"]
-    gdalCheckProc.running = true
+    converterCheckProc.command = ["python3", "-c", "import array, hashlib, json, re, struct, zlib"]
+    converterCheckProc.running = true
     refresh()
   }
 
@@ -87,6 +93,16 @@ Item {
     root.loading = true
     root.errorMessage = ""
     fetchRadarItems()
+    pruneFrames()
+  }
+
+  // Converted scans older than 6 hours are never shown again (the map keeps
+  // the last hour): remove them, or the cache grows by about 60 MB a day.
+  // Only DMI scan files ("dk.com.*"); the converter's geometry cache stays.
+  function pruneFrames() {
+    if (pruneProc.running) return
+    pruneProc.command = ["find", root.framesDir, "-maxdepth", "1", "-type", "f", "-name", "dk.com.*", "-mmin", "+360", "-delete"]
+    pruneProc.running = true
   }
 
   // ---- Radar (observed) ----
@@ -105,13 +121,13 @@ Item {
   function queueRadarDownloads(items) {
     var pending = RadarModel.newItems(items, root.processedIds)
     // Cap how many convert in one pass — only the most recent matter for
-    // display, and each conversion costs a few seconds of GDAL work.
+    // display, and each conversion costs about a second (a few, the first time).
     root.radarDownloadQueue = pending.slice(-root.observedScans)
     processRadarQueue()
   }
 
   function processRadarQueue() {
-    if (root.gdalStatus !== "available") return
+    if (root.converterStatus !== "available") return
     if (radarConvertProc.running) return
     if (root.radarDownloadQueue.length === 0) { rebuildObservedFromDisk(); return }
     var item = root.radarDownloadQueue.shift()
@@ -332,16 +348,16 @@ Item {
   }
 
   Process {
-    id: gdalCheckProc
+    id: converterCheckProc
     stdout: StdioCollector { waitForEnd: true }
     onExited: function(exitCode) {
-      root.gdalStatus = exitCode === 0 ? "available" : "missing"
-      if (root.gdalStatus === "missing") {
-        root.errorMessage = root.gdalMissingMessage
+      root.converterStatus = exitCode === 0 ? "available" : "missing"
+      if (root.converterStatus === "missing") {
+        root.errorMessage = root.converterMissingMessage
         root.loading = false
       } else if (!itemsProc.running) {
         // The scan list may have arrived first, while the queue still waited
-        // for this check (processRadarQueue returns until GDAL is known).
+        // for this check (processRadarQueue returns until it is known).
         root.processRadarQueue()
       }
     }
@@ -361,7 +377,7 @@ Item {
         return
       }
       var items = RadarModel.fullRangeOnly(RadarModel.parseItemsResponse(itemsProc.responseText))
-      if (root.gdalStatus === "missing") { root.errorMessage = root.gdalMissingMessage; root.loading = false; return }
+      if (root.converterStatus === "missing") { root.errorMessage = root.converterMissingMessage; root.loading = false; return }
       root.queueRadarDownloads(items)
     }
   }
@@ -376,11 +392,14 @@ Item {
       if (radarConvertProc.stage === "download") {
         if (exitCode !== 0) { root.processRadarQueue(); return }
         radarConvertProc.stage = "convert"
-        radarConvertProc.command = ["bash", root.helperScript, radarConvertProc.rawPath, radarConvertProc.outBase]
+        radarConvertProc.command = ["python3", root.helperScript, radarConvertProc.rawPath, radarConvertProc.outBase]
         radarConvertProc.running = true
         return
       }
+      if (exitCode === 2)
+        root.converterError = "DMI's radar files have changed format, and this version cannot read them."
       if (exitCode === 0) {
+        root.converterError = ""
         root.processedIds[radarConvertProc.currentItem.id] = true
         var items = root.observedItems.slice()
         items.push({
@@ -399,6 +418,7 @@ Item {
   }
 
   Process { id: cleanupProc }
+  Process { id: pruneProc }
 
   // Dedicated to updateLastObservedPeak(), so its reads never interleave
   // with another reader's pendingCallback.

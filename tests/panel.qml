@@ -195,7 +195,7 @@ ShellRoot {
       test.ticks++
       if (test.ticks > 250) { console.error("Timeout phase " + test.phase); Qt.exit(1); return }
 
-      if (test.phase === 0 && !panel.dataService.loading && panel.dataService.gdalStatus !== "unknown") {
+      if (test.phase === 0 && !panel.dataService.loading && panel.dataService.converterStatus !== "unknown") {
         // The stubbed radar API lists no scans: nothing to show, and the panel says why.
         test.check(panel.dataService.frames.length === 0, "no scans means no frames")
         test.check(panel.dataService.errorMessage !== "", "no scans gives an error message")

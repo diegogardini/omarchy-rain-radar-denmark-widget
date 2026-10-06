@@ -8,7 +8,7 @@
 // polar-stereographic projection, and a Marshall-Palmer Z-R pair (zr-a=200,
 // zr-b=1.6) recorded in the file's /how group — there is no ready-made
 // RATE product in the composite collection, so dBZ -> mm/h conversion is
-// done explicitly (here, and in helpers/dmi-radar-to-png for real pixels).
+// done explicitly (here, and in helpers/dmi-radar-convert.py for real pixels).
 
 var API_ROOT = "https://opendataapi.dmi.dk/v1/radardata"
 
@@ -72,10 +72,8 @@ function newItems(items, cachedIds) {
 }
 
 // Marshall-Palmer Z-R relationship: Z = a * R^b (Z in mm^6/m^3, dBZ =
-// 10*log10(Z)), inverted to solve for R (mm/h) given dBZ. Mirrors the
-// formula embedded in helpers/dmi-radar-to-png's gdal_calc.py expression —
-// kept here too so the conversion itself is unit-tested independent of GDAL
-// being installed.
+// 10*log10(Z)), inverted to solve for R (mm/h) given dBZ. The same formula as
+// helpers/dmi-radar-convert.py's, kept here too so it is unit-tested.
 function dbzToRainRate(dbz, zrA, zrB) {
   var a = typeof zrA === "number" ? zrA : 200
   var b = typeof zrB === "number" ? zrB : 1.6

@@ -6,8 +6,8 @@
 // more than matching a theme's accent hue, and a theme-tinted ramp risks
 // colliding with "extreme rain = red" on themes whose accent is itself red.
 //
-// helpers/rain-colorramp.txt (used by gdaldem color-relief for the observed
-// radar path) must be kept in sync with these exact stops by hand — see the
+// helpers/rain-colorramp.txt (used by helpers/dmi-radar-convert.py to colour
+// the observed radar) must be kept in sync with these exact stops by hand — see the
 // comment there, and tests/colorscale.test.cjs which parses both and
 // asserts they match.
 var stops = [

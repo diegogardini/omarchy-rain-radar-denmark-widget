@@ -3,7 +3,7 @@
 // a real time axis. Pure functions (no QML), unit-tested.
 //
 // Grids are {cols, rows, bounds, values}, row 0 = north, cells linear in
-// longitude and latitude (see helpers/dmi-radar-to-png).
+// longitude and latitude (see helpers/dmi-radar-convert.py).
 
 // The value of the cell containing the point (nearest-cell, so a reading is
 // exactly what the map shows there); null if the point lies outside the

@@ -1,7 +1,7 @@
-# gdaldem color-relief ramp for rain rate (mm/h) -> RGBA.
+# Colour ramp for rain rate (mm/h) -> RGBA, used by dmi-radar-convert.py.
 # MUST be kept in sync by hand with the `stops` array in ../ColorScale.js —
 # tests/colorscale.test.cjs parses both and fails the build if they diverge.
-# Format: value R G B A  (gdaldem interpolates linearly between entries)
+# Format: value R G B A  (colours are interpolated linearly between entries)
 0     0   0   0   0
 0.1   180 225 255 40
 0.5   120 196 255 110

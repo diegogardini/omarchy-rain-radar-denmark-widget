@@ -32,8 +32,9 @@ The map covers `MapModel.bounds` (5.0–16.5°E, 53.9–58.5°N) — see the REA
 for why it is so much larger than Denmark. `MapModel.js` draws it in a
 cosine-scaled equirectangular projection (longitude scaled by cos 56°,
 Denmark's mid-latitude) so shapes read correctly rather than looking
-unnaturally wide. `helpers/dmi-radar-to-png` warps the DMI radar raster to
-this exact same projection (`+proj=eqc +lat_ts=56`) before it is composited,
+unnaturally wide. `helpers/dmi-radar-convert.py` places the DMI radar raster
+on this exact same projection (evenly spaced in longitude and latitude) before
+it is composited,
 so radar and coastlines line up without any runtime reprojection.
 
 The bar icon's peak rain rate is taken over `MapModel.denmarkBounds` (the
