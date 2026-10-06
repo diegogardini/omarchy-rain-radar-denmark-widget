@@ -305,13 +305,16 @@ Panel {
   }
 
   // The location from the IP address, as Omarchy detects it without a
-  // weather.json (wttr.in). Only run for "Use location".
+  // weather.json (wttr.in). Only run for "Use location". Its answer is about
+  // 40 kB: curl stops at 1 MB (also mid-transfer), HTTPS only, and anything
+  // longer is not parsed, so it can never fill the shell's memory.
   Process {
     id: locationProc
-    command: ["curl", "-fsS", "--max-time", "10", "https://wttr.in/?format=j1"]
+    command: ["curl", "-fsS", "--proto", "=https", "--max-time", "10", "--max-filesize", "1000000", "https://wttr.in/?format=j1"]
     stdout: StdioCollector { id: locationOut; waitForEnd: true }
     onExited: function(exitCode) {
-      var loc = exitCode === 0 ? LocationModel.parseWttrLocation(locationOut.text) : null
+      var text = locationOut.text
+      var loc = exitCode === 0 && text.length <= 1000000 ? LocationModel.parseWttrLocation(text) : null
       if (!loc) { root.locationStatus = "Could not find your location (wttr.in did not answer). Pick a place instead."; return }
       if (!LocationModel.inDenmark(MapData.denmarkRings, loc.latitude, loc.longitude, 15)) {
         root.locationStatus = "Your location (" + (loc.name || "unknown") + ") is outside Denmark. Pick a place instead."

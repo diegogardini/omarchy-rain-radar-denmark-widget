@@ -9,6 +9,12 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.1.3 — 2026-10-06
+
+- "Use location" asks wttr.in where the connection is with the same care as
+  the radar downloads: HTTPS only, curl stops at 1 MB (the answer is about
+  40 kB), and a longer answer is not parsed (marketplace review).
+
 ## 1.1.2 — 2026-10-06
 
 From the marketplace review of 1.1.1:
