@@ -6,7 +6,7 @@ Item {
   property int nowIndex: -1
   property int index: 0
   property bool playing: true
-  property int frameDurationMs: 350
+  property int frameDurationMs: 387 // one 10-minute step on screen (350 until 1.2.0, then twice 5% slower)
   // Every frame with a motion (but the last) is shown in `subSteps` stages,
   // its picture moved a little further along the motion each time
   // (RadarMap.fraction), taking as long as one step does without: observed

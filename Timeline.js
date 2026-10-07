@@ -66,7 +66,18 @@ function trailingRegularRun(items, count, hasFrame, toleranceMinutes) {
   return run
 }
 
+// The time shown for a moment of the animation: to the nearest 10 minutes
+// (the scans' spacing), so the label reads 20:40 rather than 20:43 while the
+// rain itself glides on exactly. Only for what is shown; motion keeps the
+// exact time.
+var SHOWN_STEP_MS = 10 * 60000
+
+function shownMs(ms) {
+  return typeof ms === "number" && isFinite(ms) ? Math.round(ms / SHOWN_STEP_MS) * SHOWN_STEP_MS : ms
+}
+
 if (typeof module !== "undefined") module.exports = {
+  shownMs: shownMs,
   trailingRegularRun: trailingRegularRun,
   defaultStepMinutes: defaultStepMinutes,
   parseTime: parseTime,

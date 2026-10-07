@@ -11,6 +11,7 @@ import "PointSeries.js" as PointSeries
 import "ChanceModel.js" as ChanceModel
 import "Towns.js" as Towns
 import "MapData.js" as MapData
+import "Timeline.js" as Timeline
 
 Panel {
   id: root
@@ -376,11 +377,10 @@ Panel {
               anchors.fill: parent
               frame: playback.currentFrame
               observedPngPaths: playback.frames.filter(function(f) { return f.kind === "observed" && f.png }).map(function(f) { return f.png })
-              forecastBadgeText: "NOWCAST"
-              // radar frames show only "RADAR"; the nowcast's time glides
-              badgeTime: playback.currentFrame && playback.currentFrame.kind === "observed"
-                ? ""
-                : (root.graphCursorMs > 0 ? formatTime(new Date(root.graphCursorMs).toISOString()) : "")
+              forecastBadgeText: "PROJECTED"
+              // every frame shows its time, to the nearest 10 minutes (the rain
+              // still glides on exactly; only the label steps)
+              badgeTime: root.graphCursorMs > 0 ? formatTime(new Date(Timeline.shownMs(root.graphCursorMs)).toISOString()) : ""
               fraction: playback.fraction
               pin: root.pin
               pinColor: Color.accent

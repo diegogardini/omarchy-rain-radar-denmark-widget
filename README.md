@@ -45,8 +45,9 @@ summer afternoons. Not yet checked in winter (snow, sleet).
 
 ## What you see
 
-- **The map:** observed radar (marked RADAR), then the nowcast (marked
-  NOWCAST, with a finely dashed Denmark outline). Rain drawn hatched in grey
+- **The map:** the past hour of radar (marked PAST), then the nowcast
+  (marked PROJECTED, with a finely dashed Denmark outline), each with its time
+  to the nearest 10 minutes. Rain drawn hatched in grey
   came in from beyond the map's edge and is a guess.
 - **The place:** set it with **Use location** (Omarchy's weather location,
   or your connection's rough location once you turn it on), one of the four

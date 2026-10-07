@@ -18,7 +18,7 @@ Item {
   property color foreground: "#e2e8f0"
   property color background: "#0c0b0c"
   property string forecastBadgeText: "FORECAST"
-  property string observedBadgeText: "RADAR"
+  property string observedBadgeText: "PAST"
   // the nowcast's Denmark outline; the pin graph's nowcast line uses the same fine dashes
   readonly property var nowcastDash: [1.5, 2.5]
   // The time shown in the badge (the panel's clock time for this frame).

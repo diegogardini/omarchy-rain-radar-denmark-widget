@@ -9,6 +9,14 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.2.0 — 2026-10-07
+
+- The map's badge says **PAST** for the radar hour and **PROJECTED** for the
+  nowcast (it said RADAR and NOWCAST), and every frame shows its time.
+- The shown time steps to the nearest 10 minutes (the badge and the graph's
+  reading), while the rain glides on as smoothly as before.
+- The animation runs about 10% slower: 387 ms a 10-minute step (was 350).
+
 ## 1.1.3 — 2026-10-06
 
 - "Use location" asks wttr.in where the connection is with the same care as

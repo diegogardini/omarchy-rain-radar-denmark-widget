@@ -71,3 +71,12 @@ test('trailingRegularRun is empty without a newest frame and a single item witho
   assert.deepEqual(Timeline.trailingRegularRun([at(0), at(5)], 4, (it) => it.id !== 'a5'), [])
   assert.equal(Timeline.trailingRegularRun([at(0)], 4, () => true).length, 1)
 })
+
+test('the shown time is the nearest 10 minutes; the exact time is untouched', () => {
+  const t = Date.parse('2026-07-30T18:40:00Z')
+  assert.equal(Timeline.shownMs(t), t)
+  assert.equal(Timeline.shownMs(t + 4 * 60000), t)               // 18:44 -> 18:40
+  assert.equal(Timeline.shownMs(t + 5 * 60000), t + 10 * 60000)  // 18:45 -> 18:50
+  assert.equal(Timeline.shownMs(t + 9 * 60000 + 59000), t + 10 * 60000)
+  assert.equal(Timeline.shownMs(-1), -0)
+})

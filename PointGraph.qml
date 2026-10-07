@@ -1,5 +1,6 @@
 import QtQuick
 import "GraphModel.js" as GraphModel
+import "Timeline.js" as Timeline
 
 // Rain rate (mm/h) at one location over a real time axis: the last hour
 // observed (solid) and the radar nowcast (finely dashed, lighter). Under the
@@ -246,7 +247,8 @@ Canvas {
       // The reading in parts, each in its line's colour: the time, the rain
       // (blue, as the rain line) and, ahead of now, the chance (amber, as the strip).
       var parts = [
-        { text: clock(cursorMs) + (compact ? " " : "  "), color: alpha(foreground, 0.9) },
+        // the time to the nearest 10 minutes, as the map's badge (the cursor still glides)
+        { text: clock(Timeline.shownMs(cursorMs)) + (compact ? " " : "  "), color: alpha(foreground, 0.9) },
         { text: pts[near].mm.toFixed(pts[near].mm < 10 ? 1 : 0) + " mm/h", color: accent }
       ]
       if (pts[near].kind === "nowcast" && pts[near].ms >= series.nowMs && chance && chance.length) {
