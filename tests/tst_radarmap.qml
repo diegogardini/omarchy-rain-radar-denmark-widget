@@ -187,6 +187,45 @@ Item {
       map.fraction = 0
     }
 
+    // The loop's nowcast frames are painted once each, ahead: switching to
+    // one shows its own canvas (moved by the fraction too), and the shared
+    // rain layer draws nothing over it.
+    function test_loopNowcastFramesArePaintedAheadAndShownOnTheirTurn() {
+      var cols = 40, rows = 20
+      var grid = function(col) {
+        var values = []
+        for (var i = 0; i < cols * rows; i++) values.push(0)
+        values[10 * cols + col] = 20
+        return { cols: cols, rows: rows, bounds: { west: 5.0, south: 53.9, east: 16.5, north: 58.5 }, values: values }
+      }
+      var frames = [10, 20].map(function(col) {
+        return { time: "2026-10-03T21:00:00Z", kind: "forecast", png: null, grid: grid(col), motion: { dx: 8, dy: 0 } }
+      })
+      map.pin = null
+      map.fraction = 0
+      map.forecastFrames = frames
+      map.frame = frames[0]
+      waitForRendering(map)
+      wait(50)
+      verify(map.frameCached)
+      var cell = function(c) { return MapModel.project(58.5 - 10.5 * 4.6 / rows, 5.0 + (c + 0.5) * 11.5 / cols, map.width, map.height) }
+      var sat = function(p) { var c = img.pixel(Math.round(p.x), Math.round(p.y)); return Math.max(c.r, c.g, c.b) - Math.min(c.r, c.g, c.b) }
+      var img = grabImage(map)
+      verify(sat(cell(10)) > 0.3 && sat(cell(20)) < 0.1, "the first frame only")
+      map.frame = frames[1]
+      waitForRendering(map)
+      wait(50)
+      img = grabImage(map)
+      verify(sat(cell(20)) > 0.3 && sat(cell(10)) < 0.1, "the second frame only")
+      map.fraction = 0.5
+      waitForRendering(map)
+      wait(50)
+      img = grabImage(map)
+      verify(sat(cell(24)) > 0.3 && sat(cell(20)) < 0.1, "moved 4 cells east at fraction 0.5")
+      map.fraction = 0
+      map.forecastFrames = []
+    }
+
     function test_noPinDrawsNoMarker() {
       map.pin = null
       waitForRendering(map)

@@ -15,6 +15,20 @@ Item {
   // frame interval on a cold cache, so observed frames rendered blank until
   // the loop had gone around once and warmed the cache.
   property var observedPngPaths: []
+  // The nowcast frames in the loop. Each is painted once into a canvas of
+  // its own (~100 ms for a wet map, cell by cell), so playback only shows
+  // and moves it: painted on every step, it stalled the glide for about two
+  // of its stages each time.
+  property var forecastFrames: []
+  // Which of them is the current frame, or -1.
+  readonly property int cachedIndex: {
+    var f = root.frame
+    if (!f || f.kind !== "forecast" || !f.grid) return -1
+    for (var i = 0; i < root.forecastFrames.length; i++)
+      if (root.forecastFrames[i].grid === f.grid) return i
+    return -1
+  }
+  readonly property bool frameCached: cachedIndex >= 0
   property color foreground: "#e2e8f0"
   property color background: "#0c0b0c"
   property string forecastBadgeText: "FORECAST"
@@ -246,11 +260,37 @@ Item {
           var ctx = getContext("2d")
           ctx.reset()
           if (!root.frame) return
+          if (root.frameCached) return
           ctx.globalAlpha = root.isForecast ? 0.85 : 1.0
           var observedImage = (root.frame.kind === "observed" && root.frame.png) ? root.imageForPath(root.frame.png) : null
           if (observedImage && observedImage.status === Image.Ready) root.drawObserved(ctx, observedImage, root.frame.observedGrid)
           else if (root.frame.grid) root.drawGrid(ctx, root.frame.grid)
           ctx.globalAlpha = 1.0
+        }
+      }
+      Repeater {
+        // by index: a delegate's modelData is a copy, its grid not the frame's own
+        model: root.forecastFrames.length
+        delegate: Canvas {
+          id: forecastLayer
+          required property int index
+          x: -root.vp.x + root.motionShift.x
+          y: -root.vp.y + root.motionShift.y
+          width: root.width
+          height: root.height
+          visible: index === root.cachedIndex
+          onWidthChanged: requestPaint()
+          onHeightChanged: requestPaint()
+          Connections {
+            target: root
+            function onForegroundChanged() { forecastLayer.requestPaint() }
+          }
+          onPaint: {
+            var ctx = getContext("2d")
+            ctx.reset()
+            ctx.globalAlpha = 0.85
+            root.drawGrid(ctx, root.forecastFrames[index].grid)
+          }
         }
       }
     }

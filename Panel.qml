@@ -377,6 +377,7 @@ Panel {
               anchors.fill: parent
               frame: playback.currentFrame
               observedPngPaths: playback.frames.filter(function(f) { return f.kind === "observed" && f.png }).map(function(f) { return f.png })
+              forecastFrames: playback.frames.filter(function(f) { return f.kind === "forecast" && f.grid })
               forecastBadgeText: "PROJECTED"
               // every frame shows its time, to the nearest 10 minutes (the rain
               // still glides on exactly; only the label steps)

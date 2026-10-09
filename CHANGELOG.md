@@ -9,6 +9,12 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.2.1 — 2026-10-09
+
+- The PROJECTED hour glides as smoothly as the PAST one: each nowcast frame
+  is painted once, when the frames arrive, instead of on every step (about
+  100 ms of painting that stalled the glide for two of its stages).
+
 ## 1.2.0 — 2026-10-07
 
 - The map's badge says **PAST** for the radar hour and **PROJECTED** for the
