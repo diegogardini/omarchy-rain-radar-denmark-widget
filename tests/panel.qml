@@ -5,6 +5,7 @@ import "Plugin" as Rain
 import "Plugin/MapModel.js" as MapModel
 import "Plugin/Timeline.js" as Timeline
 import "Plugin/Interpolation.js" as Interpolation
+import "Plugin/Words.js" as Words
 
 ShellRoot {
   id: test
@@ -13,7 +14,11 @@ ShellRoot {
   property int startIndex: 0
   property var savedWeather: null
   function check(value, message) { if (!value) { console.error("FAIL: " + message); Qt.exit(1) } }
-  Rain.Panel { id: panel }
+  // RAIN_RADAR_TEST_LANG=da runs the same check with the panel in Danish
+  Rain.Panel {
+    id: panel
+    Component.onCompleted: if (Quickshell.env("RAIN_RADAR_TEST_LANG")) setLang(Words.language(Quickshell.env("RAIN_RADAR_TEST_LANG")))
+  }
 
   // 4x2 grid over the whole map: cell index = row*4 + col. Odense falls in
   // cell 5, Copenhagen in cell 6.
@@ -73,7 +78,7 @@ ShellRoot {
     test.check(panel.tooltip.indexOf("Aarhus") >= 0, "tooltip names the pin: " + panel.tooltip)
     var last = s.points[s.points.length - 1]
     test.check(Math.abs(last.ms - s.nowMs - 90 * 60000) < 60000, "the last nowcast point is 90 min after now")
-    test.check(panel.dataAgeText.indexOf("Radar from ") === 0 && !panel.dataStale, "a fresh scan's age is shown and not stale: " + panel.dataAgeText)
+    test.check(panel.dataAgeText.indexOf(panel.lang === "da" ? "Radar fra " : "Radar from ") === 0 && !panel.dataStale, "a fresh scan's age is shown and not stale: " + panel.dataAgeText)
 
     // A pin picked on the map wins over the weather location and is persisted.
     panel.setPin(55.6761, 12.5683)
@@ -87,7 +92,7 @@ ShellRoot {
     var peak = 0
     for (var i = 0; i < panel.pointSeries.points.length; i++) peak = Math.max(peak, panel.pointSeries.points[i].mm)
     test.check(peak === 7.5, "the nowcast peak at Odense is read at step 3, got " + peak)
-    test.check(panel.tooltip.indexOf("Light rain now · moderate rain in 30 min") >= 0, "tooltip reports the upcoming peak in words: " + panel.tooltip)
+    test.check(panel.tooltip.indexOf(panel.lang === "da" ? "Let regn nu · moderat regn om 30 min" : "Light rain now · moderate rain in 30 min") >= 0, "tooltip reports the upcoming peak in words: " + panel.tooltip)
     checkRadarNowcastMotion()
   }
   // The real computeRadarNowcast (not an injected nowcast): four evenly spaced
@@ -155,7 +160,7 @@ ShellRoot {
     ds.observedItems = [{ id: "old", datetime: new Date(old).toISOString(), pngPath: "", nowcastGridPath: "" }]
     panel.clockMs = Date.now()
     test.check(panel.dataStale && panel.dataAgeMin === 60, "an hour-old scan is stale: " + panel.dataAgeMin)
-    test.check(panel.dataAgeText.indexOf("DMI may be delayed") > 0 && panel.tooltip.indexOf("radar 1 h old") > 0, "stale data is said plainly: " + panel.dataAgeText + " | " + panel.tooltip)
+    test.check(panel.dataAgeText.indexOf(Words.t("delayed", panel.lang)) > 0 && panel.tooltip.indexOf(panel.lang === "da" ? "radar 1 time gammel" : "radar 1 h old") > 0, "stale data is said plainly: " + panel.dataAgeText + " | " + panel.tooltip)
     // town search: type part of a name, take the first match, and the pin goes there
     panel.choosingPlace = true
     panel.searchingTown = true
@@ -230,7 +235,7 @@ ShellRoot {
         test.ticks = 0
       } else if (test.phase === 6 && test.ticks > 3) {
         // the stubbed curl answers nothing for wttr.in, so the detection failed, and says so
-        test.check(panel.locationStatus.indexOf("Could not find your location") === 0 && panel.pin === null, "a failed detection says so: " + panel.locationStatus)
+        test.check(panel.locationStatus === Words.t("noWttr", panel.lang) && panel.pin === null, "a failed detection says so: " + panel.locationStatus)
         panel.weatherLocation = test.savedWeather
         // two pins in quick succession (Skærbæk, then Odense): the second must hold, even when the
         // first save's reload arrives late (fed in directly, as the file watcher can deliver it)

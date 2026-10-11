@@ -3,6 +3,7 @@ import "MapModel.js" as MapModel
 import "MapData.js" as MapData
 import "ColorScale.js" as ColorScale
 import "FixedEchoes.js" as FixedEchoes
+import "Words.js" as Words
 
 Item {
   id: root
@@ -33,6 +34,7 @@ Item {
   property color background: "#0c0b0c"
   property string forecastBadgeText: "FORECAST"
   property string observedBadgeText: "PAST"
+  property string lang: "en" // "en" or "da": the countries' names
   // the nowcast's Denmark outline; the pin graph's nowcast line uses the same fine dashes
   readonly property var nowcastDash: [1.5, 2.5]
   // The time shown in the badge (the panel's clock time for this frame).
@@ -340,7 +342,7 @@ Item {
         readonly property var point: MapModel.project(modelData.lat, modelData.lon, root.width, root.height)
         x: point.x - width / 2
         y: point.y - height / 2
-        text: modelData.name
+        text: Words.placeName(modelData.name, root.lang)
         color: root.translucent(root.foreground, 0.4)
         font.pixelSize: 9
         font.letterSpacing: 0.5

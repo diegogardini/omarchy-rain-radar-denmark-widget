@@ -1,6 +1,7 @@
 pragma ComponentBehavior: Bound
 import QtQuick
 import "ColorScale.js" as ColorScale
+import "Words.js" as Words
 
 Column {
   id: root
@@ -8,6 +9,7 @@ Column {
   // Show the key for nowcast rain carried in from beyond the map's edge (the
   // radar nowcast only; RadarMap hatches those cells with the same pattern).
   property bool showEdgeGuess: false
+  property string lang: "en" // "en" or "da"
   readonly property real maxMm: 60 // legend spans up to "extreme"; ColorScale itself continues beyond this
   spacing: 4
 
@@ -54,19 +56,19 @@ Column {
     Text {
       id: lightLabel
       x: 0
-      text: "Light"
+      text: Words.t("light", root.lang)
       color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.7)
       font.pixelSize: 9
     }
     Text {
       x: parent.width * (22.5 / root.maxMm) - width / 2
-      text: "Heavy"
+      text: Words.t("heavy", root.lang)
       color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.7)
       font.pixelSize: 9
     }
     Text {
       x: parent.width - width
-      text: "Extreme"
+      text: Words.t("extreme", root.lang)
       color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.7)
       font.pixelSize: 9
     }
@@ -96,7 +98,7 @@ Column {
     }
     Text {
       anchors.verticalCenter: parent.verticalCenter
-      text: "Rain from beyond the map's edge: a guess (brighter = heavier)"
+      text: Words.t("edge", root.lang)
       color: Qt.rgba(root.foreground.r, root.foreground.g, root.foreground.b, 0.7)
       font.pixelSize: 9
     }

@@ -12,6 +12,7 @@ import "ChanceModel.js" as ChanceModel
 import "Towns.js" as Towns
 import "MapData.js" as MapData
 import "Timeline.js" as Timeline
+import "Words.js" as Words
 
 Panel {
   id: root
@@ -29,6 +30,13 @@ Panel {
 
   readonly property int refreshMinutes: Math.max(5, parseInt(setting("refreshMinutes", 10), 10) || 10)
   readonly property bool autoPlay: setting("autoPlay", true) === true || setting("autoPlay", true) === "true"
+  // "en" or "da": the panel's language, switched in its footer and saved
+  // (English until switched)
+  property string lang: "en"
+  function setLang(l) {
+    root.lang = l
+    languageFile.setText(JSON.stringify({ lang: l }) + "\n")
+  }
 
   // ---- Location for the graph ----
   // The user's own pin (clicked on the map or picked from the city chips,
@@ -109,8 +117,8 @@ Panel {
   readonly property string dataAgeText: {
     if (dataAgeMin < 0) return ""
     var items = dataService.observedItems
-    var text = "Radar from " + formatTime(items[items.length - 1].datetime) + " · " + PointSeries.formatLead(dataAgeMin) + " ago"
-    return dataStale ? text + " · DMI may be delayed; the nowcast runs from then" : text
+    var text = Words.t("dataAge", lang, formatTime(items[items.length - 1].datetime), PointSeries.formatLead(dataAgeMin, lang))
+    return dataStale ? text + " · " + Words.t("delayed", lang) : text
   }
   readonly property var pointSeries: {
     var revision = dataService.gridsRevision // re-sample whenever the grids change
@@ -130,7 +138,7 @@ Panel {
   readonly property var pointRainChance: pointChance ? ChanceModel.rainWithin(pointChance, PointSeries.coveredMinutes(pointSeries)) : null
   // and when raining, the time by which more rain is under 10% likely
   readonly property var pointDryBy: pointChance ? ChanceModel.dryForGoodBy(pointChance, 1 - PointSeries.NO_RAIN_CHANCE) : undefined
-  readonly property string pointSummary: PointSeries.summary(pointSeries, pointRainChance, pointDryBy)
+  readonly property string pointSummary: PointSeries.summary(pointSeries, pointRainChance, pointDryBy, lang)
   // The graph's cursor follows playback, gliding between nowcast steps as
   // the map does.
   readonly property real graphCursorMs: {
@@ -216,11 +224,11 @@ Panel {
   readonly property real barMm: pin && pointNowMm !== null ? pointNowMm : peakMm
   readonly property string barLabel: dataService.converterStatus === "missing" ? "󰼓 —" : "󰖗 " + barMm.toFixed(1)
   readonly property string tooltip: dataService.converterStatus === "missing"
-    ? "Rain radar · Denmark (needs Python 3 to read the radar)"
+    ? Words.t("rainRadar", lang) + " · " + Words.t("denmark", lang) + " (" + Words.t("needsPython", lang) + ")"
     : (pin && pointNowMm !== null
-      ? "Rain radar · " + (pin.name || "Pinned location") + " · " + root.pointSummary
-      : "Rain radar · Denmark · peak " + peakMm.toFixed(1) + " mm/h")
-      + (dataStale ? " · radar " + PointSeries.formatLead(dataAgeMin) + " old" : "")
+      ? Words.t("rainRadar", lang) + " · " + Words.placeName(pin.name || "Pinned location", lang) + " · " + root.pointSummary
+      : Words.t("rainRadar", lang) + " · " + Words.t("denmark", lang) + " · " + Words.t("peak", lang) + " " + peakMm.toFixed(1) + " " + Words.t("unit", lang))
+      + (dataStale ? " · " + Words.t("radarOld", lang, PointSeries.formatLead(dataAgeMin, lang)) : "")
 
   function refresh() { dataService.refresh() }
   function open() { controller.show(); if (root.autoPlay) playback.play() }
@@ -228,6 +236,7 @@ Panel {
   DataService {
     id: dataService
     refreshMinutes: root.refreshMinutes
+    lang: root.lang
     onFramesChanged: if (frames.length > 0) playback.index = 0
   }
 
@@ -295,6 +304,16 @@ Panel {
   }
 
   FileView {
+    id: languageFile
+    path: root.stateDir + "/rain-radar-denmark-language.json"
+    atomicWrites: true
+    printErrors: false
+    onLoaded: {
+      try { root.lang = Words.language(JSON.parse(text()).lang) } catch (e) { root.lang = "en" }
+    }
+  }
+
+  FileView {
     id: selectionFile
     path: root.stateDir + "/rain-radar-denmark-location.json"
     watchChanges: true
@@ -316,9 +335,9 @@ Panel {
     onExited: function(exitCode) {
       var text = locationOut.text
       var loc = exitCode === 0 && text.length <= 1000000 ? LocationModel.parseWttrLocation(text) : null
-      if (!loc) { root.locationStatus = "Could not find your location (wttr.in did not answer). Pick a place instead."; return }
+      if (!loc) { root.locationStatus = Words.t("noWttr", root.lang); return }
       if (!LocationModel.inDenmark(MapData.denmarkRings, loc.latitude, loc.longitude, 15)) {
-        root.locationStatus = "Your location (" + (loc.name || "unknown") + ") is outside Denmark. Pick a place instead."
+        root.locationStatus = Words.t("outside", root.lang, loc.name)
         return
       }
       root.detectedLocation = loc
@@ -375,6 +394,7 @@ Panel {
             RadarMap {
               id: radarMap
               anchors.fill: parent
+              lang: root.lang
               frame: playback.currentFrame
               observedPngPaths: playback.frames.filter(function(f) { return f.kind === "observed" && f.png }).map(function(f) { return f.png })
               forecastFrames: playback.frames.filter(function(f) { return f.kind === "forecast" && f.grid })
@@ -408,6 +428,7 @@ Panel {
               PointGraph {
                 id: pointGraph
                 anchors.fill: parent
+                lang: root.lang
                 anchors.margins: 3
                 series: root.pointSeries
                 chance: root.pointChance ? root.pointChance.steps : []
@@ -485,6 +506,7 @@ Panel {
 
           Legend {
             width: parent.width
+            lang: root.lang
             foreground: root.barForeground
             showEdgeGuess: dataService.radarNowcastHasEdgeGuess
           }
@@ -517,7 +539,7 @@ Panel {
                   Text {
                     width: parent.width
                     elide: Text.ElideRight
-                    text: root.pin ? "󰍎  " + (root.pin.name || "Pinned location") : "Rain at a location"
+                    text: root.pin ? "󰍎  " + Words.placeName(root.pin.name || "Pinned location", root.lang) : Words.t("rainAtLocation", root.lang)
                     color: root.barForeground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.body
@@ -528,7 +550,7 @@ Panel {
                   id: changePlaceButton
                   visible: root.pin !== null
                   anchors.verticalCenter: parent.verticalCenter
-                  text: root.choosingPlace ? "Done" : "Change place"
+                  text: Words.t(root.choosingPlace ? "done" : "changePlace", root.lang)
                   color: Util.alpha(root.barForeground, 0.6)
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
@@ -561,7 +583,7 @@ Panel {
               // stretch ("Rain within" / "Dry for good by" 30 min · 1 h · 1½ h), the percentage below.
               RowLayout {
                 id: chanceTable
-                readonly property var parts: ChanceModel.parts(root.pointChance, root.pointNowMm)
+                readonly property var parts: ChanceModel.parts(root.pointChance, root.pointNowMm, root.lang)
                 width: parent.width
                 visible: root.pin !== null && parts !== null
                 spacing: Style.space(8)
@@ -615,9 +637,9 @@ Panel {
                 width: parent.width
                 visible: root.pin === null
                 wrapMode: Text.WordWrap
-                text: root.locationStatus === "locating" ? "Finding your location…"
+                text: root.locationStatus === "locating" ? Words.t("finding", root.lang)
                   : root.locationStatus !== "" ? root.locationStatus
-                  : "Click the map in Denmark or pick a town to see the rain falling there, and what to expect over the next 90 minutes."
+                  : Words.t("intro", root.lang)
                 color: Util.alpha(root.barForeground, 0.6)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
@@ -649,7 +671,7 @@ Panel {
                   Text {
                     id: useLocationLabel
                     anchors.centerIn: parent
-                    text: root.locationStatus === "locating" ? "󰖐 Locating…" : "󰖐 Use location"
+                    text: "󰖐 " + Words.t(root.locationStatus === "locating" ? "locating" : "useLocation", root.lang)
                     color: useLocationChip.active ? Color.background : root.barForeground
                     font.family: Style.font.family
                     font.pixelSize: Style.font.bodySmall
@@ -678,7 +700,7 @@ Panel {
                     Text {
                       id: chipLabel
                       anchors.centerIn: parent
-                      text: chip.modelData.name
+                      text: Words.placeName(chip.modelData.name, root.lang)
                       color: chip.active ? Color.background : root.barForeground
                       font.family: Style.font.family
                       font.pixelSize: Style.font.bodySmall
@@ -719,7 +741,7 @@ Panel {
                 TextField {
                   id: townField
                   width: parent.width
-                  placeholderText: "Danish town or place"
+                  placeholderText: Words.t("townPlaceholder", root.lang)
                   foreground: root.barForeground
                   accent: Color.accent
                   font.pixelSize: Style.font.bodySmall
@@ -756,7 +778,7 @@ Panel {
 
                 Text {
                   visible: root.townQuery !== "" && root.townMatches.length === 0
-                  text: "No Danish place by that name"
+                  text: Words.t("noTown", root.lang)
                   color: Util.alpha(root.barForeground, 0.55)
                   font.family: Style.font.family
                   font.pixelSize: Style.font.bodySmall
@@ -793,7 +815,7 @@ Panel {
             width: parent.width
             visible: dataService.errorMessage !== "" && playback.frames.length > 0
             wrapMode: Text.WordWrap
-            text: "Showing last known data — " + dataService.errorMessage
+            text: Words.t("lastKnown", root.lang) + dataService.errorMessage
             color: Util.alpha(root.barForeground, 0.55)
             font.family: Style.font.family
             font.pixelSize: Style.font.bodySmall
@@ -823,7 +845,7 @@ Panel {
                 font.pixelSize: Style.font.bodySmall
               }
               Text {
-                text: "How does it work?"
+                text: Words.t("how", root.lang)
                 color: Util.alpha(root.barForeground, simulationHover.hovered ? 0.8 : 0.45)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
@@ -852,6 +874,22 @@ Panel {
                 color: Util.alpha(root.barForeground, 0.3)
                 font.family: Style.font.family
                 font.pixelSize: Style.font.bodySmall
+              }
+              Text {
+                text: "·"
+                color: Util.alpha(root.barForeground, 0.3)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+              }
+              // the other language, in its own name: one click switches the panel
+              Text {
+                text: Words.t("otherLanguage", root.lang)
+                color: Util.alpha(root.barForeground, languageHover.hovered ? 0.8 : 0.45)
+                font.family: Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                font.underline: languageHover.hovered
+                TapHandler { onTapped: root.setLang(root.lang === "da" ? "en" : "da") }
+                HoverHandler { id: languageHover; cursorShape: Qt.PointingHandCursor }
               }
             }
           }

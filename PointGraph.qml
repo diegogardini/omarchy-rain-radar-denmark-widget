@@ -1,6 +1,7 @@
 import QtQuick
 import "GraphModel.js" as GraphModel
 import "Timeline.js" as Timeline
+import "Words.js" as Words
 
 // Rain rate (mm/h) at one location over a real time axis: the last hour
 // observed (solid) and the radar nowcast (finely dashed, lighter). Under the
@@ -25,6 +26,7 @@ Canvas {
   property color foreground: "#e2e8f0"
   property color accent: "#7dd3fc"
   property string fontFamily: "sans-serif"
+  property string lang: "en" // "en" or "da": the labels
   property real fontSize: 10
 
   signal seek(real ms)
@@ -139,7 +141,7 @@ Canvas {
     ctx.textAlign = "left"
     // the unit over the rain scale, in the scale's own colour
     ctx.fillStyle = alpha(foreground, 0.55)
-    ctx.fillText("mm/h", plotRight + 2, plotTop - 8)
+    ctx.fillText(Words.t("unit", lang), plotRight + 2, plotTop - 8)
 
     var pts = series.points
     if (!pts || pts.length === 0 || series.nowMs === null) return
@@ -157,7 +159,7 @@ Canvas {
       var firstHour = Math.ceil(windowStart / 3600000) * 3600000
       for (var h = firstHour; h <= windowEnd; h += 3600000) {
         var hx = xFor(h)
-        var room = (ctx.measureText(clock(h)).width + ctx.measureText("now").width) / 2 + 4
+        var room = (ctx.measureText(clock(h)).width + ctx.measureText(Words.t("now", lang)).width) / 2 + 4
         if (Math.abs(hx - nowLabelX) < room) continue
         if (hx < plotLeft + 14 || hx > plotRight - 14) continue
         ctx.fillText(clock(h), hx, plotBottom + stripH + 12)
@@ -208,7 +210,7 @@ Canvas {
       ctx.textAlign = "right"
       ctx.textBaseline = "middle"
       // the label left of "now", shortened when the past hour is too narrow for it
-      var stripLabel = ctx.measureText("chance of rain").width <= sx - plotLeft - 5 ? "chance of rain" : "chance"
+      var stripLabel = ctx.measureText(Words.t("chanceOfRain", lang)).width <= sx - plotLeft - 5 ? Words.t("chanceOfRain", lang) : Words.t("chance", lang)
       ctx.fillText(stripLabel, sx - 5, sy + stripH / 2)
     }
 
@@ -223,7 +225,7 @@ Canvas {
     ctx.textAlign = "center"
     ctx.textBaseline = "top"
     ctx.fillStyle = alpha(foreground, 0.8)
-    ctx.fillText("now", nowX, plotBottom + stripH + 12)
+    ctx.fillText(Words.t("now", lang), nowX, plotBottom + stripH + 12)
 
     // Playback cursor with its reading.
     if (cursorMs >= windowStart && cursorMs <= windowEnd) {
@@ -249,7 +251,7 @@ Canvas {
       var parts = [
         // the time to the nearest 10 minutes, as the map's badge (the cursor still glides)
         { text: clock(Timeline.shownMs(cursorMs)) + (compact ? " " : "  "), color: alpha(foreground, 0.9) },
-        { text: pts[near].mm.toFixed(pts[near].mm < 10 ? 1 : 0) + " mm/h", color: accent }
+        { text: pts[near].mm.toFixed(pts[near].mm < 10 ? 1 : 0) + " " + Words.t("unit", lang), color: accent }
       ]
       if (pts[near].kind === "nowcast" && pts[near].ms >= series.nowMs && chance && chance.length) {
         var cn = null, cg = Infinity

@@ -9,6 +9,21 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.3.0 — 2026-10-11
+
+- **Dansk:** the panel speaks Danish too. Click "Dansk" at the end of the
+  footer to switch (and "English" to switch back); the choice is saved, like
+  the place. English stays the default.
+- Everything in words follows: the forecast ("Let regn nu · tørt inden for
+  ca. 50 min"), the chances ("Regn inden for" 30 min · 1 time · 1½ time),
+  the graph (mm/t, nu), the legend, the place picker, the bar's tooltip,
+  the messages, and the names on the map (København, Sverige, Tyskland).
+  PAST and PROJECTED stay as they are.
+- For the web version, which uses the same models: `PointSeries.summaryParts`
+  gives the forecast as facts, and `PointSeries.summary`,
+  `PointSeries.formatLead` and `ChanceModel.parts` take a language. The
+  panel's own words are in the new `Words.js`.
+
 ## 1.2.1 — 2026-10-09
 
 - The PROJECTED hour glides as smoothly as the PAST one: each nowcast frame

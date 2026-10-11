@@ -8,6 +8,7 @@ import "MapModel.js" as MapModel
 import "FixedEchoes.js" as FixedEchoes
 import "Timeline.js" as Timeline
 import "PointSeries.js" as PointSeries
+import "Words.js" as Words
 
 // Owns every Process/FileView used to fetch, cache and convert DMI's radar
 // scans and to build the observed + nowcast animation loop.
@@ -16,6 +17,7 @@ Item {
   id: root
 
   property int refreshMinutes: 10
+  property string lang: "en" // "en" or "da": the messages' language
   readonly property string pluginDir: String(Qt.resolvedUrl(".")).replace("file://", "")
   // Reads DMI's HDF5 scans with Python's standard library alone (no GDAL).
   readonly property string helperScript: pluginDir + "helpers/dmi-radar-convert.py"
@@ -74,7 +76,7 @@ Item {
   // The scans are read by a Python script (standard library only; every
   // Omarchy install has python3). Without it there is nothing to show, so say
   // so instead of waiting.
-  readonly property string converterMissingMessage: "Python 3 is needed to read DMI's radar scans, and was not found."
+  readonly property string converterMissingMessage: Words.t("pythonMissing", lang)
   // Set when the converter cannot read a scan at all (exit code 2: DMI changed
   // the file layout), so the panel can say why nothing shows.
   property string converterError: ""
@@ -299,15 +301,15 @@ Item {
   function buildRadarNowcastTimeline(observedFrames) {
     if (root.observedItems.length < 2) {
       root.errorMessage = observedFrames.length === 0
-        ? (root.errorMessage || "No data available.")
-        : "Need at least two recent radar frames to extrapolate — showing observed radar only."
+        ? (root.errorMessage || Words.t("noData", root.lang))
+        : Words.t("needTwo", root.lang)
       root.nowIndex = observedFrames.length
       root.frames = observedFrames
       root.loading = false
       return
     }
     if (root.radarNowcast.length === 0) {
-      root.errorMessage = "Could not read radar data for extrapolation — showing observed radar only."
+      root.errorMessage = Words.t("cannotExtrapolate", root.lang)
       root.nowIndex = observedFrames.length
       root.frames = observedFrames
       root.loading = false
@@ -382,7 +384,7 @@ Item {
     }
     onExited: function(exitCode) {
       if (exitCode !== 0) {
-        root.errorMessage = "Could not reach DMI radar API."
+        root.errorMessage = Words.t("noApi", root.lang)
         root.loading = false
         return
       }
@@ -410,7 +412,7 @@ Item {
         return
       }
       if (exitCode === 2)
-        root.converterError = "DMI's radar files have changed format, and this version cannot read them."
+        root.converterError = Words.t("formatChanged", root.lang)
       if (exitCode === 0) {
         root.converterError = ""
         root.processedIds[radarConvertProc.currentItem.id] = true

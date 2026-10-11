@@ -138,20 +138,24 @@ function pct(x) {
 // stopped for good by its end when it is raining now ("Dry for good by").
 // Labelled "30 min · 1 h · 1½ h", not the graph's "30m", whose strip gives
 // the chance at one moment.
-function horizonLabel(h) {
+function horizonLabel(h, lang) {
+  if (lang === "da") return h < 60 ? h + " min" : (h % 60 ? Math.floor(h / 60) + "½ time" : h === 60 ? "1 time" : h / 60 + " timer")
   return h < 60 ? h + " min" : (h % 60 ? Math.floor(h / 60) + "½ h" : h / 60 + " h")
 }
 
-// As parts for a small table: {title, items: [{label, percent}]}.
-function parts(c, nowMm) {
+// As parts for a small table: {title, raining, items: [{label, minutes, percent}]},
+// in English or, with `lang` "da", Danish.
+var TITLES = { en: ["Rain within", "Dry for good by"], da: ["Regn inden for", "Varigt tørt inden"] }
+function parts(c, nowMm, lang) {
   if (!c) return null
   var last = c.steps[c.steps.length - 1].minutes
   var hs = [30, 60, 90].filter(function(h) { return h <= last })
   if (hs.length === 0) return null
   var raining = nowMm !== null && nowMm >= RAIN
   return {
-    title: raining ? "Dry for good by" : "Rain within",
-    items: hs.map(function(h) { return { label: horizonLabel(h), percent: pct(raining ? dryWithin(c, h) : rainWithin(c, h)) } })
+    title: (TITLES[lang] || TITLES.en)[raining ? 1 : 0],
+    raining: raining,
+    items: hs.map(function(h) { return { label: horizonLabel(h, lang), minutes: h, percent: pct(raining ? dryWithin(c, h) : rainWithin(c, h)) } })
   }
 }
 

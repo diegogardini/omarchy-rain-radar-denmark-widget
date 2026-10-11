@@ -79,9 +79,11 @@ test('statements count from the clock; the copies spread by the lead from the sc
 
 test('parts gives the chances as a title and one cell per horizon, for the panel\'s table', () => {
   const c = ChanceModel.compute(nowcast(Array(12).fill(() => 0)), 56, 10, NOW)
-  assert.deepEqual(ChanceModel.parts(c, 0), { title: 'Rain within', items: [
-    { label: '30 min', percent: '0%' }, { label: '1 h', percent: '0%' }, { label: '1½ h', percent: '0%' }] })
+  assert.deepEqual(ChanceModel.parts(c, 0), { title: 'Rain within', raining: false, items: [
+    { label: '30 min', minutes: 30, percent: '0%' }, { label: '1 h', minutes: 60, percent: '0%' },
+    { label: '1½ h', minutes: 90, percent: '0%' }] })
   assert.equal(ChanceModel.parts(c, 1.5).title, 'Dry for good by')
+  assert.equal(ChanceModel.parts(c, 1.5).raining, true)
   assert.equal(ChanceModel.parts(null, 0), null)
 })
 
@@ -92,4 +94,12 @@ test('dryForGoodBy: the first step from now when dry for good reaches the chance
   assert.equal(ChanceModel.dryForGoodBy(c, 0.75), 26)
   assert.equal(ChanceModel.dryForGoodBy(c, 0.8), null)
   assert.equal(ChanceModel.dryForGoodBy(null, 0.9), null)
+})
+
+test('parts in Danish', () => {
+  const c = ChanceModel.compute(nowcast(Array(12).fill(() => 0)), 56, 10, NOW)
+  const p = ChanceModel.parts(c, 0, 'da')
+  assert.equal(p.title, 'Regn inden for')
+  assert.deepEqual(p.items.map((it) => it.label), ['30 min', '1 time', '1½ time'])
+  assert.equal(ChanceModel.parts(c, 1.5, 'da').title, 'Varigt tørt inden')
 })

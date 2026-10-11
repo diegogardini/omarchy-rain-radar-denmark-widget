@@ -264,3 +264,31 @@ test('raining: "dry within" only once more rain is under 10% likely', () => {
   // without chances, the best guess as before
   assert.equal(PointSeries.summary(s), 'Light rain now · dry within 10 min')
 })
+
+test('summaryParts gives the summary as facts, which summary words in English', () => {
+  assert.deepEqual(PointSeries.summaryParts({ points: [], nowMs: null }), { now: null, next: null })
+  assert.deepEqual(PointSeries.summaryParts(seriesOf(0, [0, 0.02, 0])), { now: 'dry', next: { kind: 'none', minutes: 15 } })
+  assert.deepEqual(PointSeries.summaryParts(seriesOf(0, [0, 0.02, 0]), 0.55), { now: 'dry', next: { kind: 'showers' } })
+  assert.deepEqual(PointSeries.summaryParts(seriesOf(3, [3.2, 3.1, 2.9])), { now: 'light', next: null })
+  assert.deepEqual(PointSeries.summaryParts(seriesOf(0, [0, 2, 3]), 0.9), { now: 'dry', next: { kind: 'rain', level: 'light', minutes: 10 } })
+})
+
+test('summary in Danish, the same facts as in English', () => {
+  const da = (s, chance, dryBy) => PointSeries.summary(s, chance, dryBy, 'da')
+  assert.equal(da({ points: [], nowMs: null }), 'Ingen radarmåling her endnu')
+  assert.equal(da(seriesOf(0, [0, 0.02, 0])), 'Tørt · ingen regn ventet de næste 15 min')
+  assert.equal(da(seriesOf(0, [0, 0.02, 0]), 0.55), 'Tørt nu · byger i nærheden')
+  assert.equal(da(seriesOf(0, [0, 2, 3]), 0.9), 'Tørt nu · let regn om ca. 10 min')
+  assert.equal(da(seriesOf(0, [0, 2, 8])), 'Tørt nu · regn om ca. 10 min, op til moderat')
+  assert.equal(da(seriesOf(3, [3.2, 3.1, 2.9])), 'Let regn nu')
+  assert.equal(da(seriesOf(1, [2, 20, 20])), 'Let regn nu · kraftig regn om 10 min')
+  const s = seriesOf(1, [0.5, 0, 0, 0])
+  assert.equal(da(s, 0.9, 62), 'Let regn nu · tørt inden for ca. 1 time')
+  assert.equal(da(s, 0.9, null), 'Let regn nu · kan aftage')
+  assert.equal(da(s), 'Let regn nu · tørt inden for 10 min')
+})
+
+test('formatLead in Danish', () => {
+  assert.deepEqual([20, 60, 90, 120, 70].map((m) => PointSeries.formatLead(m, 'da')),
+    ['20 min', '1 time', '1½ time', '2 timer', '1 t 10 min'])
+})

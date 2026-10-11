@@ -139,9 +139,15 @@ function formatMm(mm) {
   return (mm < 10 ? mm.toFixed(1) : mm.toFixed(0)) + " mm/h"
 }
 
-function formatLead(minutes) {
+// Minutes ahead in words: "20 min", "1 h 10 min"; in Danish ("da") "1 time",
+// "1½ time", "2 timer", "1 t 10 min".
+function formatLead(minutes, lang) {
   if (minutes < 60) return minutes + " min"
   var h = Math.floor(minutes / 60), m = minutes % 60
+  if (lang === "da") {
+    if (m === 0) return h === 1 ? "1 time" : h + " timer"
+    return m === 30 ? h + "½ time" : h + " t " + m + " min"
+  }
   return m === 0 ? h + " h" : h + " h " + m + " min"
 }
 
@@ -200,32 +206,91 @@ function intensity(mm) {
 // own; if it never comes, "may ease off" when the best guess dries.
 var NO_RAIN_CHANCE = 0.1
 
-function summary(series, rainChance, dryBy) {
+// The summary as facts, for a page that words them in its own language:
+// {now, next}. `now` is null (no radar reading here yet), "dry", or the rain's
+// intensity word ("light" .. "extreme"). `next` is null or one of
+//   {kind: "heavier", level, minutes}  raining: heavier rain in `minutes`
+//   {kind: "dry", minutes, approx}     raining: dry within (~)`minutes`
+//   {kind: "ease"}                     raining: may ease off
+//   {kind: "rain", level, minutes}     dry: rain in ~`minutes`, up to `level`
+//   {kind: "showers"}                  dry: showers nearby
+//   {kind: "none", minutes}            dry: no rain expected in the next `minutes`
+function summaryParts(series, rainChance, dryBy) {
   var drizzle = 0.1
   var now = currentMm(series)
-  if (now === null) return "No radar reading here yet"
+  if (now === null) return { now: null, next: null }
   var peak = peakAhead(series)
   if (now >= drizzle) {
     var word = intensity(now)
-    var text = word.charAt(0).toUpperCase() + word.slice(1) + " rain now"
     if (peak && peak.minutes > 0 && intensityRank(peak.mm) > intensityRank(now))
-      return text + " · " + intensity(peak.mm) + " rain in " + formatLead(peak.minutes)
+      return { now: word, next: { kind: "heavier", level: intensity(peak.mm), minutes: peak.minutes } }
     var dry = dryFromMinutes(series)
     if (dryBy !== undefined) {
-      if (typeof dryBy === "number") return text + " · dry within ~" + formatLead(Math.max(10, Math.round(dryBy / 10) * 10))
-      return dry === null ? text : text + " · may ease off"
+      if (typeof dryBy === "number")
+        return { now: word, next: { kind: "dry", minutes: Math.max(10, Math.round(dryBy / 10) * 10), approx: true } }
+      return { now: word, next: dry === null ? null : { kind: "ease" } }
     }
-    return dry === null ? text : text + " · dry within " + formatLead(dry)
+    return { now: word, next: dry === null ? null : { kind: "dry", minutes: dry, approx: false } }
   }
   var first = firstAtLeast(series, drizzle)
-  if (first) {
-    var top = intensity(peak.mm)
-    return top === "light" ? "Dry now · light rain in ~" + formatLead(first.minutes)
-      : "Dry now · rain in ~" + formatLead(first.minutes) + ", up to " + top
-  }
+  if (first) return { now: "dry", next: { kind: "rain", level: intensity(peak.mm), minutes: first.minutes } }
   var covered = coveredMinutes(series)
-  if (typeof rainChance === "number" && rainChance >= NO_RAIN_CHANCE) return "Dry now · showers nearby"
-  return covered > 0 ? "Dry · no rain expected in the next " + formatLead(covered) : "Dry now"
+  if (typeof rainChance === "number" && rainChance >= NO_RAIN_CHANCE) return { now: "dry", next: { kind: "showers" } }
+  return { now: "dry", next: covered > 0 ? { kind: "none", minutes: covered } : null }
+}
+
+// The summary in words, one line: "Light rain now · dry within ~50 min".
+// `lang`: "en" (the default) or "da".
+var SUMMARY_WORDS = {
+  en: {
+    level: { light: "light", moderate: "moderate", heavy: "heavy", "very heavy": "very heavy", extreme: "extreme" },
+    noReading: "No radar reading here yet",
+    rainNow: function(level) { return level + " rain now" },
+    heavier: function(level, lead) { return level + " rain in " + lead },
+    ease: "may ease off",
+    dryWithin: function(lead, approx) { return "dry within " + (approx ? "~" : "") + lead },
+    dryNow: "Dry now",
+    lightIn: function(lead) { return "light rain in ~" + lead },
+    rainIn: function(lead, level) { return "rain in ~" + lead + ", up to " + level },
+    showers: "showers nearby",
+    dry: "Dry",
+    noneFor: function(lead) { return "no rain expected in the next " + lead }
+  },
+  da: {
+    level: { light: "let", moderate: "moderat", heavy: "kraftig", "very heavy": "meget kraftig", extreme: "ekstrem" },
+    noReading: "Ingen radarmåling her endnu",
+    rainNow: function(level) { return level + " regn nu" },
+    heavier: function(level, lead) { return level + " regn om " + lead },
+    ease: "kan aftage",
+    dryWithin: function(lead, approx) { return "tørt inden for " + (approx ? "ca. " : "") + lead },
+    dryNow: "Tørt nu",
+    lightIn: function(lead) { return "let regn om ca. " + lead },
+    rainIn: function(lead, level) { return "regn om ca. " + lead + ", op til " + level },
+    showers: "byger i nærheden",
+    dry: "Tørt",
+    noneFor: function(lead) { return "ingen regn ventet de næste " + lead }
+  }
+}
+
+function summary(series, rainChance, dryBy, lang) {
+  var w = SUMMARY_WORDS[lang] || SUMMARY_WORDS.en
+  var s = summaryParts(series, rainChance, dryBy)
+  var n = s.next
+  var lead = function(minutes) { return formatLead(minutes, lang) }
+  if (s.now === null) return w.noReading
+  if (s.now !== "dry") {
+    var text = w.rainNow(w.level[s.now])
+    text = text.charAt(0).toUpperCase() + text.slice(1)
+    if (!n) return text
+    if (n.kind === "heavier") return text + " · " + w.heavier(w.level[n.level], lead(n.minutes))
+    if (n.kind === "ease") return text + " · " + w.ease
+    return text + " · " + w.dryWithin(lead(n.minutes), n.approx)
+  }
+  if (!n) return w.dryNow
+  if (n.kind === "rain")
+    return w.dryNow + " · " + (n.level === "light" ? w.lightIn(lead(n.minutes)) : w.rainIn(lead(n.minutes), w.level[n.level]))
+  if (n.kind === "showers") return w.dryNow + " · " + w.showers
+  return w.dry + " · " + w.noneFor(lead(n.minutes))
 }
 
 if (typeof module !== "undefined") module.exports = {
@@ -234,6 +299,7 @@ if (typeof module !== "undefined") module.exports = {
   ageMinutes: ageMinutes,
   coveredMinutes: coveredMinutes,
   summary: summary,
+  summaryParts: summaryParts,
   intensity: intensity,
   formatMm: formatMm,
   formatLead: formatLead,

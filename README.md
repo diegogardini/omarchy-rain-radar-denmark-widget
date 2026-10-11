@@ -62,6 +62,8 @@ summer afternoons. Not yet checked in winter (snow, sleet).
   showers nearby" rather than "no rain" when a shower could still reach you.
 - **The bar:** the rain at your place now (or the peak over Denmark without
   one); hover for the forecast in words, middle-click to refresh.
+- **Dansk / English:** the link at the end of the footer switches the panel
+  between English (the default) and Danish, and remembers it.
 
 Everything counts from the clock, not from the radar scan, which DMI
 publishes 12–13 minutes late.
