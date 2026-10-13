@@ -9,6 +9,12 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.3.1 — 2026-10-13
+
+- Danish wording, after a review: "hvad du kan forvente" (not "vente") in
+  the intro, the edge legend reads "Regn uden for kortet: et skøn (lysere =
+  kraftigere)", and the place field says "By eller sted i Danmark".
+
 ## 1.3.0 — 2026-10-11
 
 - **Dansk:** the panel speaks Danish too. Click "Dansk" at the end of the
