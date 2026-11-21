@@ -268,7 +268,8 @@ var SUMMARY_WORDS = {
     rainIn: function(lead, level) { return "regn om ca. " + lead + ", op til " + level },
     showers: "byger i nærheden",
     dry: "Tørt",
-    noneFor: function(lead) { return "ingen regn ventet de næste " + lead }
+    // "den næste 1 time", "den næste 1½ time"; "de næste 15 min", "de næste 2 timer"
+    noneFor: function(lead) { return "ingen regn ventet " + (/ time$/.test(lead) ? "den" : "de") + " næste " + lead }
   }
 }
 

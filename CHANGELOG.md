@@ -9,6 +9,11 @@ the IPC `status` read it from there). Each release is tagged `vMAJOR.MINOR.PATCH
 - **MINOR**: a new feature or a visible change to what the widget shows.
 - **PATCH**: a fix that changes nothing else.
 
+## 1.3.2 — 2026-11-21
+
+- Danish: "ingen regn ventet den næste 1½ time" (and "1 time"): "time" is
+  singular; "de næste" stays for "15 min" and "2 timer".
+
 ## 1.3.1 — 2026-10-13
 
 - Danish wording, after a review: "hvad du kan forvente" (not "vente") in

@@ -277,6 +277,8 @@ test('summary in Danish, the same facts as in English', () => {
   const da = (s, chance, dryBy) => PointSeries.summary(s, chance, dryBy, 'da')
   assert.equal(da({ points: [], nowMs: null }), 'Ingen radarmåling her endnu')
   assert.equal(da(seriesOf(0, [0, 0.02, 0])), 'Tørt · ingen regn ventet de næste 15 min')
+  assert.equal(da(seriesOf(0, Array(19).fill(0))), 'Tørt · ingen regn ventet den næste 1½ time')
+  assert.equal(da(seriesOf(0, Array(12).fill(0))), 'Tørt · ingen regn ventet den næste 1 time')
   assert.equal(da(seriesOf(0, [0, 0.02, 0]), 0.55), 'Tørt nu · byger i nærheden')
   assert.equal(da(seriesOf(0, [0, 2, 3]), 0.9), 'Tørt nu · let regn om ca. 10 min')
   assert.equal(da(seriesOf(0, [0, 2, 8])), 'Tørt nu · regn om ca. 10 min, op til moderat')
